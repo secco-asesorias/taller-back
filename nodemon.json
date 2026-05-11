@@ -1,0 +1,7 @@
+{
+  "watch": ["src", "server.ts"],
+  "ext": "ts,json",
+  "execMap": {
+    "ts": "node --import tsx"
+  }
+}
