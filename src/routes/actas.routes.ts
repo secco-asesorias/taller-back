@@ -21,6 +21,17 @@ router.get('/borrador/patente/:patente', async (req: AuthRequest, res: Response,
   } catch (e) { next(e); }
 });
 
+/** Actas cuyo vehículo coincide con la patente (búsqueda parcial). Query: limite, status opcionales. */
+router.get('/patente/:patente', async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { limite, status } = req.query as Record<string, string>;
+    res.json(await svc.buscarActasPorPatente(p(req).patente, {
+      limite: Number(limite) || 30,
+      status: status || undefined,
+    }));
+  } catch (e) { next(e); }
+});
+
 router.get('/:id', async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     res.json(await svc.cargarActaCompleta(p(req).id));

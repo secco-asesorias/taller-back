@@ -16,9 +16,16 @@ router.get('/', async (req: AuthRequest, res: Response, next: NextFunction) => {
   } catch (e) { next(e); }
 });
 
+/** Diagnósticos por patente (parcial). Por defecto todos los status hasta limite. Query: limite, status, soloActivos. */
 router.get('/buscar/patente/:patente', async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    res.json(await svc.buscarDiagnosticoPorPatente(p(req).patente));
+    const { limite, status, soloActivos } = req.query as Record<string, string>;
+    const soloActivosFlag = soloActivos === '1' || soloActivos === 'true';
+    res.json(await svc.buscarDiagnosticoPorPatente(p(req).patente, {
+      limite: Number(limite) || 30,
+      status: status || undefined,
+      soloActivos: soloActivosFlag,
+    }));
   } catch (e) { next(e); }
 });
 

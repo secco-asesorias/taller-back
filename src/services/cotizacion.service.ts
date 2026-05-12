@@ -2,6 +2,36 @@ import supabase from '../config/supabase';
 import { cargarDiagnosticoCompleto } from './diagnostico.service';
 import { ItemCotizacion, CotizacionUpdate } from '../models/cotizacion.model';
 
+const COTIZACION_LIST_SELECT = `
+  *, diagnosticos(id, numero_diagnostico, tipo_mantencion, status),
+  actas(id, numero_acta), clientes(id, nombre, telefono, email),
+  vehiculos(id, marca, modelo, patente, anio)
+`;
+
+const STATUS_COTIZACION = new Set(['borrador', 'lista', 'enviada', 'aprobada', 'rechazada']);
+const STATUS_DIAGNOSTICO = new Set(['pendiente', 'proceso', 'listo', 'cerrado']);
+
+/** `status` en query suele ser de cotización; si mandan `listo`/`proceso`/… es del diagnóstico, no de la tabla cotizaciones. */
+function resolverFiltrosBusquedaCotizacion(opts: { status?: string; diagnostico_status?: string }) {
+  let statusCotizacion: string | undefined;
+  let statusDiagnostico: string | undefined;
+
+  const diagParam = opts.diagnostico_status?.trim().toLowerCase();
+  if (diagParam) statusDiagnostico = diagParam;
+
+  const st = opts.status?.trim().toLowerCase();
+  if (st) {
+    if (STATUS_COTIZACION.has(st)) statusCotizacion = st;
+    else if (STATUS_DIAGNOSTICO.has(st)) {
+      if (!statusDiagnostico) statusDiagnostico = st;
+    } else {
+      statusCotizacion = st;
+    }
+  }
+
+  return { statusCotizacion, statusDiagnostico };
+}
+
 interface TotalesOverrides {
   margen_pct?: number;
   horas_trabajo?: number;
@@ -238,9 +268,104 @@ export async function actualizarCotizacion(id: string, datos: CotizacionUpdate) 
 export async function listarCotizaciones(limite = 30) {
   const { data, error } = await supabase
     .from('cotizaciones')
-    .select(`*, diagnosticos(id, numero_diagnostico, tipo_mantencion, status), actas(id, numero_acta), clientes(id, nombre, telefono, email), vehiculos(id, marca, modelo, patente, anio)`)
+    .select(COTIZACION_LIST_SELECT)
     .order('updated_at', { ascending: false })
     .limit(limite);
   if (error) throw error;
   return data || [];
+}
+
+/** Listado por patente (parcial): vehículo, acta o diagnóstico de esas actas. Query: limite, status (cotización o diagnóstico), diagnostico_status. */
+export async function buscarCotizacionesPorPatente(
+  patente: string,
+  opts: { limite?: number; status?: string; diagnostico_status?: string } = {},
+) {
+  const q = patente.trim();
+  if (!q) return [];
+
+  const limite = opts.limite ?? 30;
+  const safe = q.replace(/[%_\\]/g, '');
+  if (!safe) return [];
+
+  const { statusCotizacion, statusDiagnostico } = resolverFiltrosBusquedaCotizacion(opts);
+
+  const pattern = `%${safe}%`;
+
+  const { data: vehiculos, error: errV } = await supabase
+    .from('vehiculos')
+    .select('id')
+    .ilike('patente', pattern);
+  if (errV) throw errV;
+  if (!vehiculos?.length) return [];
+
+  const vids = (vehiculos as { id: string }[]).map((v) => v.id);
+
+  const { data: actas, error: errA } = await supabase
+    .from('actas')
+    .select('id')
+    .in('vehiculo_id', vids);
+  if (errA) throw errA;
+  const actaIds = ((actas || []) as { id: string }[]).map((a) => a.id);
+
+  let qPorVeh = supabase
+    .from('cotizaciones')
+    .select(COTIZACION_LIST_SELECT)
+    .in('vehiculo_id', vids);
+  if (statusCotizacion) qPorVeh = qPorVeh.eq('status', statusCotizacion);
+
+  const { data: porVehiculo, error: e1 } = await qPorVeh;
+  if (e1) throw e1;
+
+  let porActa: unknown[] = [];
+  let porDiag: unknown[] = [];
+  if (actaIds.length) {
+    let qPorActa = supabase
+      .from('cotizaciones')
+      .select(COTIZACION_LIST_SELECT)
+      .in('acta_id', actaIds);
+    if (statusCotizacion) qPorActa = qPorActa.eq('status', statusCotizacion);
+    const { data, error: e2 } = await qPorActa;
+    if (e2) throw e2;
+    porActa = data || [];
+
+    const { data: diagnosticos, error: errD } = await supabase
+      .from('diagnosticos')
+      .select('id')
+      .in('acta_id', actaIds);
+    if (errD) throw errD;
+    const diagIds = ((diagnosticos || []) as { id: string }[]).map((d) => d.id);
+    if (diagIds.length) {
+      let qPorDiag = supabase
+        .from('cotizaciones')
+        .select(COTIZACION_LIST_SELECT)
+        .in('diagnostico_id', diagIds);
+      if (statusCotizacion) qPorDiag = qPorDiag.eq('status', statusCotizacion);
+      const { data: d3, error: e3 } = await qPorDiag;
+      if (e3) throw e3;
+      porDiag = d3 || [];
+    }
+  }
+
+  const byId = new Map<string, Record<string, unknown>>();
+  for (const row of [...(porVehiculo || []), ...porActa, ...porDiag]) {
+    const rec = row as { id: string };
+    if (rec?.id && !byId.has(rec.id)) byId.set(rec.id, row as Record<string, unknown>);
+  }
+
+  let merged = [...byId.values()].sort((a, b) => {
+    const ta = new Date(String(a.updated_at ?? 0)).getTime();
+    const tb = new Date(String(b.updated_at ?? 0)).getTime();
+    return tb - ta;
+  });
+
+  if (statusDiagnostico) {
+    const want = statusDiagnostico.toLowerCase();
+    merged = merged.filter((row) => {
+      const d = row.diagnosticos as { status?: string } | null | undefined;
+      if (!d || typeof d !== 'object') return false;
+      return String(d.status ?? '').toLowerCase() === want;
+    });
+  }
+
+  return merged.slice(0, limite);
 }

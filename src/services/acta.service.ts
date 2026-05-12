@@ -213,6 +213,45 @@ export async function buscarBorradorPorPatente(patente: string) {
   return data || [];
 }
 
+/** Búsqueda por patente (coincidencia parcial, sin distinguir mayúsculas) para listados / autocompletado. */
+export async function buscarActasPorPatente(
+  patente: string,
+  opts: { limite?: number; status?: string } = {},
+) {
+  const q = patente.trim();
+  if (!q) return [];
+
+  const limite = opts.limite ?? 30;
+  const safe = q.replace(/[%_\\]/g, '');
+  if (!safe) return [];
+
+  const pattern = `%${safe}%`;
+
+  const { data: vehiculos, error: errV } = await supabase
+    .from('vehiculos')
+    .select('id')
+    .ilike('patente', pattern);
+
+  if (errV) throw errV;
+  if (!vehiculos?.length) return [];
+
+  const ids = (vehiculos as { id: string }[]).map((v) => v.id);
+
+  let query = supabase
+    .from('actas')
+    .select(ACTA_SELECT)
+    .in('vehiculo_id', ids)
+    .not('vehiculo_id', 'is', null)
+    .order('updated_at', { ascending: false })
+    .limit(limite);
+
+  if (opts.status) query = query.eq('status', opts.status);
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return data || [];
+}
+
 export async function eliminarActa(id: string) {
   const { data, error } = await supabase
     .from('actas')

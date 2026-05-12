@@ -94,22 +94,50 @@ export async function guardarRepuestos(diagnosticoId: string, repuestos: Repuest
   return data || [];
 }
 
-export async function buscarDiagnosticoPorPatente(patente: string) {
-  const { data: vehiculo } = await supabase
-    .from('vehiculos').select('id').ilike('patente', patente.trim().toUpperCase()).maybeSingle();
-  if (!vehiculo) return [];
+export async function buscarDiagnosticoPorPatente(
+  patente: string,
+  opts: { limite?: number; status?: string; soloActivos?: boolean } = {},
+) {
+  const q = patente.trim();
+  if (!q) return [];
 
-  const { data: actas } = await supabase
-    .from('actas').select('id').eq('vehiculo_id', (vehiculo as { id: string }).id);
-  const actaIds = ((actas || []) as { id: string }[]).map(a => a.id);
+  const limite = opts.limite ?? 30;
+  const safe = q.replace(/[%_\\]/g, '');
+  if (!safe) return [];
+
+  const pattern = `%${safe}%`;
+
+  const { data: vehiculos, error: errV } = await supabase
+    .from('vehiculos')
+    .select('id')
+    .ilike('patente', pattern);
+  if (errV) throw errV;
+  if (!vehiculos?.length) return [];
+
+  const vids = (vehiculos as { id: string }[]).map((v) => v.id);
+
+  const { data: actas, error: errA } = await supabase
+    .from('actas')
+    .select('id')
+    .in('vehiculo_id', vids);
+  if (errA) throw errA;
+  const actaIds = ((actas || []) as { id: string }[]).map((a) => a.id);
   if (!actaIds.length) return [];
 
-  const { data, error } = await supabase
+  let query = supabase
     .from('diagnosticos')
     .select(DIAG_SELECT)
     .in('acta_id', actaIds)
-    .in('status', ['pendiente', 'proceso'])
-    .order('fecha_creacion', { ascending: false });
+    .order('fecha_creacion', { ascending: false })
+    .limit(limite);
+
+  if (opts.status) {
+    query = query.eq('status', opts.status);
+  } else if (opts.soloActivos) {
+    query = query.in('status', ['pendiente', 'proceso']);
+  }
+
+  const { data, error } = await query;
   if (error) throw error;
   return data || [];
 }
