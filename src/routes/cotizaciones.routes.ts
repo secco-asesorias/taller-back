@@ -88,4 +88,10 @@ router.patch('/:id/rechazar', requireRole('admin'), async (req: AuthRequest, res
   } catch (e) { next(e); }
 });
 
+router.delete('/:id', requireRole('admin'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    res.json(await svc.eliminarCotizacion(p(req).id));
+  } catch (e) { next(e); }
+});
+
 export default router;

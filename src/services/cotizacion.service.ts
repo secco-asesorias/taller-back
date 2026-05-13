@@ -265,6 +265,18 @@ export async function actualizarCotizacion(id: string, datos: CotizacionUpdate) 
   return data;
 }
 
+export async function eliminarCotizacion(id: string) {
+  const { data, error } = await supabase
+    .from('cotizaciones')
+    .delete()
+    .eq('id', id)
+    .select('id')
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
 export async function listarCotizaciones(limite = 30) {
   const { data, error } = await supabase
     .from('cotizaciones')
