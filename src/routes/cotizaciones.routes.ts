@@ -3,6 +3,7 @@ import authenticate, { AuthRequest } from '../middleware/auth';
 import requireRole from '../middleware/roleGuard';
 import { CotizacionUpdateSchema } from '../models/cotizacion.model';
 import * as svc from '../services/cotizacion.service';
+import * as pdfSvc from '../services/cotizacionPdf.service';
 import * as otSvc from '../services/ordenTrabajo.service';
 import supabase from '../config/supabase';
 
@@ -48,6 +49,26 @@ router.post('/desde-acta/:actaId', requireRole('admin', 'recepcionista'), async 
 router.post('/borrador', requireRole('admin', 'recepcionista'), async (_req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     res.status(201).json(await svc.crearCotizacionBorradorLibre());
+  } catch (e) { next(e); }
+});
+
+/** PDF desde `presupuestos.html` + Handlebars; el body puede traer cliente, vehiculo, items, resumen, fecha, etc. */
+router.post('/:id/pdf', async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const id = p(req).id;
+    const row = (await svc.cargarCotizacionCompleta(id)) as Record<string, unknown>;
+    const body =
+      req.body && typeof req.body === 'object' && !Array.isArray(req.body)
+        ? (req.body as Record<string, unknown>)
+        : {};
+    const ctx = pdfSvc.mergePresupuestoFromBodyAndRow(body, row);
+    const buffer = await pdfSvc.generarPdfPresupuesto(ctx);
+    const slug =
+      (ctx.vehiculo.patente && ctx.vehiculo.patente.replace(/[^\w-]/g, '')) || id.slice(0, 8);
+    const filename = `cotizacion-${slug}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(buffer);
   } catch (e) { next(e); }
 });
 
