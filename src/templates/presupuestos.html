@@ -102,6 +102,17 @@
       padding-bottom: 10px;
     }
 
+    .subsection-title {
+      font-size: 15px;
+      font-weight: bold;
+      margin: 20px 0 12px;
+      color: #374151;
+    }
+
+    .subsection-title:first-of-type {
+      margin-top: 0;
+    }
+
     .info-grid {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
@@ -318,46 +329,65 @@
       <div class="section">
         <div class="section-title">Detalle de Trabajos</div>
 
+        {{#if itemsRepuestos.length}}
+        <div class="subsection-title">Repuestos y servicios</div>
         <table>
           <thead>
             <tr>
               <th>#</th>
               <th>Descripción</th>
               <th>Cantidad</th>
-              <th>Repuesto</th>
-              <th>Mano de Obra</th>
-              <th>Total</th>
+              <th class="money">Total</th>
             </tr>
           </thead>
-
           <tbody>
-            {{#each items}}
+            {{#each itemsRepuestos}}
             <tr>
               <td>{{index}}</td>
-
               <td>
                 <strong>{{descripcion}}</strong>
+                {{#if detalle}}
                 <br />
                 <small>{{detalle}}</small>
+                {{/if}}
               </td>
-
               <td>{{cantidad}}</td>
-
-              <td class="money">
-                ${{repuesto}}
-              </td>
-
-              <td class="money">
-                ${{manoObra}}
-              </td>
-
-              <td class="money">
-                ${{total}}
-              </td>
+              <td class="money">${{total}}</td>
             </tr>
             {{/each}}
           </tbody>
         </table>
+        {{/if}}
+
+        {{#if itemsManoObra.length}}
+        <div class="subsection-title">Mano de obra</div>
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Descripción</th>
+              <th>Cantidad</th>
+              <th class="money">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{#each itemsManoObra}}
+            <tr>
+              <td>{{index}}</td>
+              <td>
+                <strong>{{descripcion}}</strong>
+                {{#if detalle}}
+                <br />
+                <small>{{detalle}}</small>
+                {{/if}}
+              </td>
+              <td>{{cantidad}}</td>
+              <td class="money">${{total}}</td>
+            </tr>
+            {{/each}}
+          </tbody>
+        </table>
+        {{/if}}
       </div>
 
       <!-- RESUMEN -->

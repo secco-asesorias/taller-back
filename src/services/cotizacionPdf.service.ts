@@ -25,8 +25,6 @@ export interface PresupuestoPdfItem {
   descripcion: string;
   detalle: string;
   cantidad: string;
-  repuesto: string;
-  manoObra: string;
   total: string;
 }
 
@@ -43,7 +41,10 @@ export interface PresupuestoPdfContext {
     kilometraje: string;
     vin: string;
   };
-  items: PresupuestoPdfItem[];
+  /** Líneas que no son mano de obra (repuesto, servicio, trabajo, etc.). */
+  itemsRepuestos: PresupuestoPdfItem[];
+  /** Líneas de mano de obra (`tipo` que incluye «mano»). */
+  itemsManoObra: PresupuestoPdfItem[];
   resumen: {
     neto: string;
     iva: string;
@@ -71,19 +72,80 @@ function isManoObraItem(it: Record<string, unknown>): boolean {
   return tipo.includes('mano') || tipo === 'mano_obra';
 }
 
-function mapItemFromDb(it: Record<string, unknown>, i: number): PresupuestoPdfItem {
+interface PdfLineRow {
+  mo: boolean;
+  descripcion: string;
+  detalle: string;
+  cantidad: string;
+  total: string;
+}
+
+function pdfLineFromDb(it: Record<string, unknown>): PdfLineRow {
   const cant = Number(it.cantidad) || 1;
   const pu = Number(it.precio_unitario) || 0;
   const line = Math.round(cant * pu);
-  const mo = isManoObraItem(it);
   return {
-    index: String(i + 1),
+    mo: isManoObraItem(it),
     descripcion: String(it.descripcion ?? ''),
     detalle: String(it.tipo ?? it.observacion ?? ''),
     cantidad: String(cant),
-    repuesto: String(mo ? 0 : line),
-    manoObra: String(mo ? line : 0),
     total: String(line),
+  };
+}
+
+function withIndex(rows: PdfLineRow[]): PresupuestoPdfItem[] {
+  return rows.map((row, i) => ({
+    index: String(i + 1),
+    descripcion: row.descripcion,
+    detalle: row.detalle,
+    cantidad: row.cantidad,
+    total: row.total,
+  }));
+}
+
+function splitPdfLines(lines: PdfLineRow[]): {
+  itemsRepuestos: PresupuestoPdfItem[];
+  itemsManoObra: PresupuestoPdfItem[];
+} {
+  const rep = lines.filter((l) => !l.mo);
+  const mo = lines.filter((l) => l.mo);
+  return {
+    itemsRepuestos: withIndex(rep),
+    itemsManoObra: withIndex(mo),
+  };
+}
+
+function cotizacionLikeRecord(r: Record<string, unknown>): boolean {
+  return (
+    r.tipo != null ||
+    r.type != null ||
+    r.precio_unitario != null ||
+    r.precioUnitario != null
+  );
+}
+
+function pdfLineFromBodyRecord(r: Record<string, unknown>): PdfLineRow {
+  if (cotizacionLikeRecord(r)) {
+    const merged: Record<string, unknown> = {
+      ...r,
+      tipo: r.tipo ?? r.type,
+      precio_unitario: r.precio_unitario ?? r.precioUnitario,
+      cantidad: r.cantidad ?? r.quantity,
+      descripcion: r.descripcion ?? r.description,
+      observacion: r.observacion,
+    };
+    return pdfLineFromDb(merged);
+  }
+  const rep = Number(r.repuesto) || 0;
+  const mob = Number(r.manoObra ?? r.mano_obra) || 0;
+  const totalStr = pickStr(r.total, String(Math.max(rep + mob, 0)));
+  const mo = mob > 0 && rep === 0;
+  return {
+    mo,
+    descripcion: pickStr(r.descripcion),
+    detalle: pickStr(r.detalle),
+    cantidad: pickStr(r.cantidad, '1'),
+    total: totalStr,
   };
 }
 
@@ -95,7 +157,8 @@ function presupuestoContextFromRow(row: Record<string, unknown>): PresupuestoPdf
   const cotNum = numActa != null ? String(numActa) : String(row.id ?? '').slice(0, 8);
 
   const itemsRaw = Array.isArray(row.items) ? (row.items as Record<string, unknown>[]) : [];
-  const items = itemsRaw.map((it, i) => mapItemFromDb(it, i));
+  const lines = itemsRaw.map((it) => pdfLineFromDb(it));
+  const { itemsRepuestos, itemsManoObra } = splitPdfLines(lines);
 
   const neto = n(row.subtotal);
   const iva = n(row.iva);
@@ -121,7 +184,8 @@ function presupuestoContextFromRow(row: Record<string, unknown>): PresupuestoPdf
       kilometraje: pickStr(vehDb?.kilometraje, acta?.kilometraje),
       vin: pickStr(vehDb?.vin, vehDb?.chasis),
     },
-    items,
+    itemsRepuestos,
+    itemsManoObra,
     resumen: {
       neto: String(neto),
       iva: String(iva),
@@ -130,19 +194,6 @@ function presupuestoContextFromRow(row: Record<string, unknown>): PresupuestoPdf
       descuento: String(desc),
       total: String(totalFinal),
     },
-  };
-}
-
-function normalizeItemFromBody(it: unknown, i: number): PresupuestoPdfItem {
-  const r = asRecord(it) ?? {};
-  return {
-    index: pickStr(r.index, String(i + 1)),
-    descripcion: pickStr(r.descripcion),
-    detalle: pickStr(r.detalle),
-    cantidad: pickStr(r.cantidad, '1'),
-    repuesto: pickStr(r.repuesto, '0'),
-    manoObra: pickStr(r.manoObra, r.mano_obra, '0'),
-    total: pickStr(r.total, '0'),
   };
 }
 
@@ -181,10 +232,12 @@ export function mergePresupuestoFromBodyAndRow(
     total: pickStr(rBody?.total, base.resumen.total),
   };
 
-  const items =
-    Array.isArray(body.items) && body.items.length > 0
-      ? (body.items as unknown[]).map((it, i) => normalizeItemFromBody(it, i))
-      : base.items;
+  let itemsRepuestos = base.itemsRepuestos;
+  let itemsManoObra = base.itemsManoObra;
+  if (Array.isArray(body.items) && body.items.length > 0) {
+    const lines = (body.items as unknown[]).map((it) => pdfLineFromBodyRecord(asRecord(it) ?? {}));
+    ({ itemsRepuestos, itemsManoObra } = splitPdfLines(lines));
+  }
 
   return {
     fecha: pickStr(body.fecha, base.fecha),
@@ -192,7 +245,8 @@ export function mergePresupuestoFromBodyAndRow(
     diasValidez: pickStr(body.diasValidez, base.diasValidez),
     cliente,
     vehiculo,
-    items,
+    itemsRepuestos,
+    itemsManoObra,
     resumen,
   };
 }
