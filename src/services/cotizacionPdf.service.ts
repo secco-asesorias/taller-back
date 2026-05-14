@@ -20,6 +20,27 @@ function n(x: unknown): number {
   return Math.round(Number(x) || 0);
 }
 
+function parseMontoInput(value: unknown): number {
+  if (value == null || value === '') return 0;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  let s = String(value).trim().replace(/\s/g, '');
+  if (!s) return 0;
+  if (/^\d{1,3}(\.\d{3})+$/.test(s)) return Number(s.replace(/\./g, '')) || 0;
+  if (/^\d{1,3}(\.\d{3})+,\d{1,2}$/.test(s)) {
+    return Number(s.replace(/\./g, '').replace(',', '.')) || 0;
+  }
+  s = s.replace(',', '.');
+  return Number(s) || 0;
+}
+
+function formatEnteroCl(value: unknown): string {
+  const num = Math.round(parseMontoInput(value));
+  const neg = num < 0;
+  const abs = Math.abs(num);
+  const parts = String(abs).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return neg ? `-${parts}` : parts;
+}
+
 export interface PresupuestoPdfItem {
   index: string;
   descripcion: string;
@@ -88,8 +109,8 @@ function pdfLineFromDb(it: Record<string, unknown>): PdfLineRow {
     mo: isManoObraItem(it),
     descripcion: String(it.descripcion ?? ''),
     detalle: String(it.tipo ?? it.observacion ?? ''),
-    cantidad: String(cant),
-    total: String(line),
+    cantidad: formatEnteroCl(cant),
+    total: formatEnteroCl(line),
   };
 }
 
@@ -138,14 +159,14 @@ function pdfLineFromBodyRecord(r: Record<string, unknown>): PdfLineRow {
   }
   const rep = Number(r.repuesto) || 0;
   const mob = Number(r.manoObra ?? r.mano_obra) || 0;
-  const totalStr = pickStr(r.total, String(Math.max(rep + mob, 0)));
+  const totalRaw = pickStr(r.total, String(Math.max(rep + mob, 0)));
   const mo = mob > 0 && rep === 0;
   return {
     mo,
     descripcion: pickStr(r.descripcion),
     detalle: pickStr(r.detalle),
-    cantidad: pickStr(r.cantidad, '1'),
-    total: totalStr,
+    cantidad: formatEnteroCl(parseMontoInput(pickStr(r.cantidad, '1'))),
+    total: formatEnteroCl(parseMontoInput(totalRaw)),
   };
 }
 
@@ -187,12 +208,12 @@ function presupuestoContextFromRow(row: Record<string, unknown>): PresupuestoPdf
     itemsRepuestos,
     itemsManoObra,
     resumen: {
-      neto: String(neto),
-      iva: String(iva),
-      subtotal: String(subtotalConIva),
-      cargoServicio: String(cargoServicio),
-      descuento: String(desc),
-      total: String(totalFinal),
+      neto: formatEnteroCl(neto),
+      iva: formatEnteroCl(iva),
+      subtotal: formatEnteroCl(subtotalConIva),
+      cargoServicio: formatEnteroCl(cargoServicio),
+      descuento: formatEnteroCl(desc),
+      total: formatEnteroCl(totalFinal),
     },
   };
 }
@@ -224,12 +245,14 @@ export function mergePresupuestoFromBodyAndRow(
 
   const rBody = asRecord(body.resumen);
   const resumen = {
-    neto: pickStr(rBody?.neto, base.resumen.neto),
-    iva: pickStr(rBody?.iva, base.resumen.iva),
-    subtotal: pickStr(rBody?.subtotal, base.resumen.subtotal),
-    cargoServicio: pickStr(rBody?.cargoServicio, base.resumen.cargoServicio),
-    descuento: pickStr(rBody?.descuento, base.resumen.descuento),
-    total: pickStr(rBody?.total, base.resumen.total),
+    neto: formatEnteroCl(parseMontoInput(pickStr(rBody?.neto, base.resumen.neto))),
+    iva: formatEnteroCl(parseMontoInput(pickStr(rBody?.iva, base.resumen.iva))),
+    subtotal: formatEnteroCl(parseMontoInput(pickStr(rBody?.subtotal, base.resumen.subtotal))),
+    cargoServicio: formatEnteroCl(
+      parseMontoInput(pickStr(rBody?.cargoServicio, base.resumen.cargoServicio)),
+    ),
+    descuento: formatEnteroCl(parseMontoInput(pickStr(rBody?.descuento, base.resumen.descuento))),
+    total: formatEnteroCl(parseMontoInput(pickStr(rBody?.total, base.resumen.total))),
   };
 
   let itemsRepuestos = base.itemsRepuestos;
