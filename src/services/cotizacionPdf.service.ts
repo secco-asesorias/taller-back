@@ -89,8 +89,37 @@ function formatFechaEs(iso: unknown): string {
 }
 
 function isManoObraItem(it: Record<string, unknown>): boolean {
-  const tipo = String(it.tipo || '').toLowerCase();
+  const tipo = String(it.tipo || it.type || '').toLowerCase();
   return tipo.includes('mano') || tipo === 'mano_obra';
+}
+
+/** Etiqueta legible para repuesto / servicio / trabajo / mano de obra (PDF). */
+function normalizarCategoriaItem(raw: unknown): string {
+  const s = String(raw ?? '').trim();
+  if (!s) return '';
+  const key = s.toLowerCase().replace(/[\s-]+/g, '_');
+  if (key.includes('mano')) return 'Mano de obra';
+  const labels: Record<string, string> = {
+    repuesto: 'Repuesto',
+    repuestos: 'Repuesto',
+    servicio: 'Servicio',
+    servicios: 'Servicio',
+    trabajo: 'Trabajo',
+    trabajos: 'Trabajo',
+    mano_obra: 'Mano de obra',
+  };
+  return labels[key] ?? '';
+}
+
+function categoriaLineaPdf(it: Record<string, unknown>, mo = false): string {
+  const fromTipo = normalizarCategoriaItem(it.tipo ?? it.type);
+  if (fromTipo) return fromTipo;
+  if (mo) return 'Mano de obra';
+  const fromDetalle = normalizarCategoriaItem(it.detalle);
+  if (fromDetalle) return fromDetalle;
+  const fromObs = normalizarCategoriaItem(it.observacion);
+  if (fromObs) return fromObs;
+  return '';
 }
 
 interface PdfLineRow {
@@ -105,10 +134,11 @@ function pdfLineFromDb(it: Record<string, unknown>): PdfLineRow {
   const cant = Number(it.cantidad) || 1;
   const pu = Number(it.precio_unitario) || 0;
   const line = Math.round(cant * pu);
+  const mo = isManoObraItem(it);
   return {
-    mo: isManoObraItem(it),
+    mo,
     descripcion: String(it.descripcion ?? ''),
-    detalle: String(it.tipo ?? it.observacion ?? ''),
+    detalle: categoriaLineaPdf(it, mo),
     cantidad: formatEnteroCl(cant),
     total: formatEnteroCl(line),
   };
@@ -164,7 +194,7 @@ function pdfLineFromBodyRecord(r: Record<string, unknown>): PdfLineRow {
   return {
     mo,
     descripcion: pickStr(r.descripcion),
-    detalle: pickStr(r.detalle),
+    detalle: categoriaLineaPdf(r, mo),
     cantidad: formatEnteroCl(parseMontoInput(pickStr(r.cantidad, '1'))),
     total: formatEnteroCl(parseMontoInput(totalRaw)),
   };

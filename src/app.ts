@@ -5,10 +5,12 @@ import errorHandler from './middleware/errorHandler';
 import clientesRoutes from './routes/clientes.routes';
 import vehiculosRoutes from './routes/vehiculos.routes';
 import actasRoutes from './routes/actas.routes';
+import actasEntregaRoutes from './routes/actasEntrega.routes';
 import fotosRoutes from './routes/fotos.routes';
 import diagnosticosRoutes from './routes/diagnosticos.routes';
 import cotizacionesRoutes from './routes/cotizaciones.routes';
 import ordenesTrabajoRoutes from './routes/ordenesTrabajo.routes';
+import usuariosRoutes from './routes/usuarios.routes';
 
 const app = express();
 
@@ -21,10 +23,12 @@ app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 app.use('/api/clientes', clientesRoutes);
 app.use('/api/vehiculos', vehiculosRoutes);
 app.use('/api/actas', actasRoutes);
+app.use('/api/actas-entrega', actasEntregaRoutes);
 app.use('/api/fotos', fotosRoutes);
 app.use('/api/diagnosticos', diagnosticosRoutes);
 app.use('/api/cotizaciones', cotizacionesRoutes);
 app.use('/api/ordenes-trabajo', ordenesTrabajoRoutes);
+app.use('/api/usuarios', usuariosRoutes);
 
 app.use(errorHandler);
 

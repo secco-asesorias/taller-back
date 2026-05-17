@@ -28,10 +28,26 @@
       box-shadow: none;
     }
 
+    .logo-top {
+      text-align: center;
+      padding: 32px 32px 24px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .header-logo {
+      display: block;
+      margin: 0 auto;
+      width: auto;
+      height: auto;
+      max-width: 600px;
+      max-height: 200px;
+      object-fit: contain;
+    }
+
     .header {
       background: transparent;
       color: #111827;
-      padding: 32px;
+      padding: 24px 32px 32px;
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
@@ -40,18 +56,7 @@
     }
 
     .header-left {
-      display: flex;
-      align-items: center;
-      gap: 20px;
       min-width: 0;
-    }
-
-    .header-logo {
-      height: 52px;
-      width: auto;
-      max-width: 160px;
-      object-fit: contain;
-      flex-shrink: 0;
     }
 
     .header-titles {
@@ -91,6 +96,19 @@
 
     .section {
       margin-bottom: 32px;
+    }
+
+    /* Veh?culo en p?gina nueva (PDF / impresi?n) */
+    .section-vehiculo {
+      page-break-before: always;
+      break-before: page;
+      padding-top: 8px;
+    }
+    
+    .section-price {
+      page-break-before: always;
+      break-before: page;
+      padding-top: 8px;
     }
 
     .section-title {
@@ -217,6 +235,11 @@
         box-shadow: none;
         border-radius: 0;
       }
+
+      .section-vehiculo {
+        page-break-before: always;
+        break-before: page;
+      }
     }
 
     @media (max-width: 768px) {
@@ -246,15 +269,18 @@
 
   <div class="document">
 
+    {{#if logoSrc}}
+    <div class="logo-top">
+      <img class="header-logo" src="{{{logoSrc}}}" alt="Secco Automotriz" />
+    </div>
+    {{/if}}
+
     <!-- HEADER -->
     <div class="header">
       <div class="header-left">
-        {{#if logoSrc}}
-        <img class="header-logo" src="{{{logoSrc}}}" alt="Secco Automotriz" width="160" height="52" />
-        {{/if}}
         <div class="header-titles">
           <h1>Propuesta de Servicio</h1>
-          <p>Documento de cotización y detalle de trabajos</p>
+          <p>Documento de cotizaci?n y detalle de trabajos</p>
         </div>
       </div>
 
@@ -262,7 +288,7 @@
         <div class="label">Fecha</div>
         <div class="value">{{fecha}}</div>
 
-        <div class="label">Cotización</div>
+        <div class="label">Cotizaci?n</div>
         <div class="value">#{{cotizacionNumero}}</div>
       </div>
     </div>
@@ -271,7 +297,7 @@
 
       <!-- CLIENTE -->
       <div class="section">
-        <div class="section-title">Información del Cliente</div>
+        <div class="section-title">Informaci?n del Cliente</div>
 
         <div class="info-grid">
           <div class="info-card">
@@ -280,7 +306,7 @@
           </div>
 
           <div class="info-card">
-            <div class="info-label">Teléfono</div>
+            <div class="info-label">Tel?fono</div>
             <div class="info-value">{{cliente.telefono}}</div>
           </div>
 
@@ -296,8 +322,8 @@
         </div>
       </div>
 
-      <!-- VEHICULO -->
-      <div class="section">
+      <!-- VEHICULO (pagina siguiente) -->
+      <div class="section section-vehiculo">
         <div class="section-title">Datos del Vehículo</div>
 
         <div class="info-grid">
@@ -309,7 +335,7 @@
           </div>
 
           <div class="info-card">
-            <div class="info-label">Año</div>
+            <div class="info-label">A?o</div>
             <div class="info-value">{{vehiculo.anio}}</div>
           </div>
 
@@ -391,7 +417,7 @@
       </div>
 
       <!-- RESUMEN -->
-      <div class="section">
+      <div class="section section-price">
         <div class="summary">
 
           <div class="summary-row">
@@ -432,7 +458,7 @@
     <!-- FOOTER -->
     <div class="footer">
       Gracias por confiar en nosotros. Esta propuesta tiene una validez de
-      {{diasValidez}} días.
+      {{diasValidez}} d?as.
     </div>
 
   </div>
