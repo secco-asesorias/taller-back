@@ -30,13 +30,12 @@ router.put('/:id', requireRole('admin', 'tecnico'), async (req: AuthRequest, res
 
 router.patch('/:id/asignar', requireRole('admin'), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const { tecnico_id, tecnico_nombre } = req.body as { tecnico_id?: string; tecnico_nombre?: string };
-    res.json(await svc.actualizarOT(p(req).id, {
-      status: 'asignada',
-      tecnico_id: tecnico_id || null,
-      tecnico_nombre: tecnico_nombre || null,
-      nota_historial: `Asignado a técnico: ${tecnico_nombre || ''}`,
-    }));
+    const { tecnico_id } = req.body as { tecnico_id?: string };
+    if (!tecnico_id?.trim()) {
+      res.status(400).json({ error: 'tecnico_id es requerido (id de perfiles del técnico)' });
+      return;
+    }
+    res.json(await svc.asignarTecnicoOT(p(req).id, tecnico_id.trim()));
   } catch (e) { next(e); }
 });
 
