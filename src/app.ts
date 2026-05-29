@@ -11,6 +11,7 @@ import diagnosticosRoutes from './routes/diagnosticos.routes';
 import cotizacionesRoutes from './routes/cotizaciones.routes';
 import ordenesTrabajoRoutes from './routes/ordenesTrabajo.routes';
 import usuariosRoutes from './routes/usuarios.routes';
+import tecnicosRoutes from './routes/tecnicos.routes';
 
 const app = express();
 
@@ -29,6 +30,7 @@ app.use('/api/diagnosticos', diagnosticosRoutes);
 app.use('/api/cotizaciones', cotizacionesRoutes);
 app.use('/api/ordenes-trabajo', ordenesTrabajoRoutes);
 app.use('/api/usuarios', usuariosRoutes);
+app.use('/api/tecnicos', tecnicosRoutes);
 
 app.use(errorHandler);
 

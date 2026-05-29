@@ -1,6 +1,7 @@
 import supabase from '../config/supabase';
 import { cargarCotizacionCompleta } from './cotizacion.service';
 import { OTUpdate } from '../models/ordenTrabajo.model';
+import { resolverTecnicoPorPerfilId } from './tecnico.service';
 
 const OT_SELECT = `
   id, numero_ot, status, tecnico_nombre, tecnico_id, created_at, updated_at,
@@ -168,6 +169,16 @@ export async function listarOTs(limite = 30, status?: string, tecnicoId?: string
   const { data, error } = await query;
   if (error) throw error;
   return data || [];
+}
+
+export async function asignarTecnicoOT(otId: string, tecnicoId: string) {
+  const tecnico = await resolverTecnicoPorPerfilId(tecnicoId);
+  return actualizarOT(otId, {
+    status: 'asignada',
+    tecnico_id: tecnico.id,
+    tecnico_nombre: tecnico.nombre,
+    nota_historial: `Asignado a técnico: ${tecnico.nombre}`,
+  });
 }
 
 export async function actualizarOT(id: string, datos: OTUpdate) {
