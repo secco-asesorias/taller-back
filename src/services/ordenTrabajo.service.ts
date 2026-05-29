@@ -4,7 +4,9 @@ import { OTUpdate } from '../models/ordenTrabajo.model';
 import { resolverTecnicoPorPerfilId } from './tecnico.service';
 
 const OT_SELECT = `
-  id, numero_ot, status, tecnico_id, tecnico_nombre, created_at, updated_at, observaciones, notas_torre,
+  id, numero_ot, status, tecnico_nombre, tecnico_id, created_at, updated_at,
+  observaciones, notas_torre, km_ingreso, inicio_servicio, termino_servicio,
+  instrucciones,
   vehiculos:vehiculo_id (marca, modelo, patente),
   clientes:cliente_id (nombre, telefono)
 `;
@@ -17,7 +19,7 @@ function otItemId(prefix: string, index: number, text = ''): string {
   return `${prefix}-${index + 1}${slug ? `-${slug}` : ''}`;
 }
 
-function estructurarOTDesdeItems(items: OTItem[] = []) {
+export function estructurarOTDesdeItems(items: OTItem[] = []) {
   const rows = items.filter(it => String(it.descripcion || '').trim());
   const esManoObra = (it: OTItem) => String(it.tipo || '').toLowerCase().includes('mano');
   const esRepuesto = (it: OTItem) => String(it.tipo || '').toLowerCase().includes('repuesto');
@@ -33,6 +35,7 @@ function estructurarOTDesdeItems(items: OTItem[] = []) {
   const instrucciones = rows.filter(it => !esRepuesto(it) && !esManoObra(it)).map((it, i) => ({
     id: it.id || otItemId('ins', i, it.descripcion),
     texto: it.descripcion || '',
+    horas: undefined as number | undefined,
     repuestos_ids: [] as string[],
     orden: i + 1,
     completada: false,
@@ -41,7 +44,8 @@ function estructurarOTDesdeItems(items: OTItem[] = []) {
   if (!instrucciones.length && repuestos.length) {
     instrucciones.push({
       id: 'ins-1-revision-general',
-      texto: 'Ejecutar trabajos aprobados según presupuesto y diagnóstico.',
+      texto: 'Ejecutar trabajos aprobados según presupuesto.',
+      horas: undefined,
       repuestos_ids: repuestos.map(r => r.id),
       orden: 1,
       completada: false,
@@ -49,6 +53,65 @@ function estructurarOTDesdeItems(items: OTItem[] = []) {
   }
 
   return { repuestos, instrucciones };
+}
+
+export async function crearOTDesdeActa(actaId: string) {
+  // 1. Duplicate check — si ya existe OT para esta acta, devolverla
+  const { data: existente } = await supabase
+    .from('ordenes_trabajo')
+    .select('id, numero_ot, status')
+    .eq('acta_id', actaId)
+    .maybeSingle();
+  if (existente) return existente;
+
+  // 2. Obtener el acta
+  const { data: acta, error: errActa } = await supabase
+    .from('actas')
+    .select('*, vehiculos:vehiculo_id(*), clientes:cliente_id(*)')
+    .eq('id', actaId)
+    .single();
+  if (errActa) throw errActa;
+
+  // 3. Buscar cotización vinculada al acta (la más reciente)
+  const { data: cot } = await supabase
+    .from('cotizaciones')
+    .select('*')
+    .eq('acta_id', actaId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  // 4. Estructurar repuestos e instrucciones desde items de la cotización
+  const { repuestos, instrucciones } = cot
+    ? estructurarOTDesdeItems((cot as Record<string, unknown>).items as OTItem[] ?? [])
+    : { repuestos: [], instrucciones: [] };
+
+  // 5. Crear OT — numero_ot se asigna automáticamente por SERIAL
+  const { data: ot, error: errOT } = await supabase
+    .from('ordenes_trabajo')
+    .insert({
+      acta_id:       actaId,
+      cotizacion_id: cot?.id ?? null,
+      vehiculo_id:   (acta as Record<string, unknown>).vehiculo_id ?? null,
+      cliente_id:    (acta as Record<string, unknown>).cliente_id ?? null,
+      km_ingreso:    (acta as Record<string, unknown>).km ?? null,
+      status:        'generada',
+      repuestos,
+      instrucciones,
+      items:         (cot as Record<string, unknown> | null)?.items ?? [],
+      observaciones: '',
+      notas_torre:   '',
+      historial: [{
+        ts:     new Date().toISOString(),
+        accion: 'OT generada desde acta',
+        nota:   cot ? `COT-${(cot as Record<string, unknown>).numero_cotizacion}` : 'sin cotización',
+      }],
+    })
+    .select()
+    .single();
+  if (errOT) throw errOT;
+
+  return ot;
 }
 
 export async function aprobarCotizacionYCrearOT(cotizacionId: string) {
@@ -64,16 +127,16 @@ export async function aprobarCotizacionYCrearOT(cotizacionId: string) {
   const { data: ot, error: errOT } = await supabase
     .from('ordenes_trabajo')
     .insert({
-      cotizacion_id: cotizacionId,
-      acta_id: cot.acta_id || null,
-      vehiculo_id: cot.vehiculo_id || null,
-      cliente_id: cot.cliente_id || null,
-      status: 'generada',
-      items: cot.items || [],
-      repuestos: estructuraOT.repuestos,
-      instrucciones: estructuraOT.instrucciones,
-      observaciones: cot.notas || '',
-      notas_torre: '',
+      cotizacion_id:  cotizacionId,
+      acta_id:        cot.acta_id || null,
+      vehiculo_id:    cot.vehiculo_id || null,
+      cliente_id:     cot.cliente_id || null,
+      status:         'generada',
+      items:          cot.items || [],
+      repuestos:      estructuraOT.repuestos,
+      instrucciones:  estructuraOT.instrucciones,
+      observaciones:  cot.notas || '',
+      notas_torre:    '',
       historial: [{ ts: new Date().toISOString(), accion: 'OT generada desde cotización', nota: `COT-${cot.numero_cotizacion}` }],
     })
     .select()
@@ -93,14 +156,16 @@ export async function cargarOTCompleta(id: string) {
   return data;
 }
 
-export async function listarOTs(limite = 30, status?: string) {
+export async function listarOTs(limite = 30, status?: string, tecnicoId?: string) {
   let query = supabase
     .from('ordenes_trabajo')
     .select(OT_SELECT)
     .order('updated_at', { ascending: false })
     .limit(limite);
 
-  if (status) query = query.eq('status', status);
+  if (status)    query = query.eq('status', status);
+  if (tecnicoId) query = query.eq('tecnico_id', tecnicoId);
+
   const { data, error } = await query;
   if (error) throw error;
   return data || [];
@@ -117,8 +182,8 @@ export async function asignarTecnicoOT(otId: string, tecnicoId: string) {
 }
 
 export async function actualizarOT(id: string, datos: OTUpdate) {
-  const historialEntry = datos.status
-    ? { ts: new Date().toISOString(), accion: `Estado cambiado a: ${datos.status}`, nota: datos.nota_historial || '' }
+  const historialEntry = datos.status || datos.nota_historial
+    ? { ts: new Date().toISOString(), accion: datos.status ? `Estado cambiado a: ${datos.status}` : 'Actualización', nota: datos.nota_historial || '' }
     : null;
 
   const { data: otActual } = await supabase

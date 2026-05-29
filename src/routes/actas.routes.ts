@@ -3,6 +3,7 @@ import authenticate, { AuthRequest } from '../middleware/auth';
 import requireRole from '../middleware/roleGuard';
 import { ActaCreateSchema, ActaUpdateSchema } from '../models/acta.model';
 import * as svc from '../services/acta.service';
+import * as otSvc from '../services/ordenTrabajo.service';
 
 const router = Router();
 router.use(authenticate);
@@ -67,6 +68,14 @@ router.patch('/:id/cerrar', requireRole('admin', 'recepcionista'), async (req: A
 router.delete('/:id', requireRole('admin'), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     res.json(await svc.eliminarActa(p(req).id));
+  } catch (e) { next(e); }
+});
+
+/** Crea una OT a partir del acta (o devuelve la existente si ya fue creada) */
+router.post('/:id/iniciar-ot', requireRole('admin'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const ot = await otSvc.crearOTDesdeActa(p(req).id);
+    res.status(201).json(ot);
   } catch (e) { next(e); }
 });
 

@@ -34,9 +34,10 @@ export async function crearUsuario(datos: UsuarioCreate) {
   };
   if (nombre) perfilRow.nombre = nombre;
 
+  // Upsert: si el trigger de auth ya creó la fila, la actualiza; si no, la inserta
   const { data: perfil, error: perfilError } = await supabase
     .from('perfiles')
-    .insert(perfilRow)
+    .upsert(perfilRow, { onConflict: 'id' })
     .select('id, email, nombre, rol, created_at')
     .single();
 
