@@ -67,14 +67,23 @@ export async function actualizarDiagnostico(id: string, datos: DiagnosticoUpdate
 
 export async function guardarChecklist(diagnosticoId: string, items: ChecklistItem[]) {
   if (!items?.length) return [];
-  const rows = items.map(it => ({
-    diagnostico_id: diagnosticoId, seccion: it.seccion, item: it.item,
-    estado: it.estado || 'ok', observacion: it.observacion || null,
-  }));
-  const { data, error } = await supabase
+
+  const secciones = [...new Set(items.map((it) => it.seccion))];
+  const { error: delError } = await supabase
     .from('diagnostico_checklist')
-    .upsert(rows, { onConflict: 'diagnostico_id,seccion,item' })
-    .select();
+    .delete()
+    .eq('diagnostico_id', diagnosticoId)
+    .in('seccion', secciones);
+  if (delError) throw delError;
+
+  const rows = items.map((it) => ({
+    diagnostico_id: diagnosticoId,
+    seccion: it.seccion,
+    item: it.item,
+    estado: it.estado || 'ok',
+    observacion: it.observacion || null,
+  }));
+  const { data, error } = await supabase.from('diagnostico_checklist').insert(rows).select();
   if (error) throw error;
   return data || [];
 }
