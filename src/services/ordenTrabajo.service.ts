@@ -4,13 +4,9 @@ import { OTUpdate } from '../models/ordenTrabajo.model';
 import { resolverTecnicoPorPerfilId } from './tecnico.service';
 
 const OT_SELECT = `
-<<<<<<< HEAD
   id, numero_ot, status, tecnico_nombre, tecnico_id, created_at, updated_at,
   observaciones, notas_torre, km_ingreso, inicio_servicio, termino_servicio,
   instrucciones,
-=======
-  id, numero_ot, status, tecnico_id, tecnico_nombre, created_at, updated_at, observaciones, notas_torre,
->>>>>>> origin/dev
   vehiculos:vehiculo_id (marca, modelo, patente),
   clientes:cliente_id (nombre, telefono)
 `;

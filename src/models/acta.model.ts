@@ -14,19 +14,11 @@ export const ActaUpdateSchema = z.object({
   combustible: z.string().optional(),
   llaves: z.union([z.boolean(), z.number().int().min(0)]).optional(),
   documentacion: z.array(z.string()).optional(),
-<<<<<<< HEAD
   estado_exterior: z.string().optional().nullable(),
   detalle_exterior: z.string().optional().nullable(),
   estado_interior: z.string().optional().nullable(),
   detalle_interior: z.string().optional().nullable(),
   trabajo_solicitado: z.string().optional(),
-=======
-  estado_exterior: z.string().optional(),
-  detalle_exterior: z.string().optional().nullable(),
-  estado_interior: z.string().optional(),
-  detalle_interior: z.string().optional().nullable(),
-  trabajo_solicitado: z.string().optional().nullable(),
->>>>>>> origin/dev
   acepta_declaracion: z.boolean().optional(),
   acepta_responsabilidad_objetos: z.boolean().optional(),
   acepta_pruebas_ruta: z.boolean().optional(),
