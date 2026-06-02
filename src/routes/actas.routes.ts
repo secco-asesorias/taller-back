@@ -3,6 +3,7 @@ import authenticate, { AuthRequest } from '../middleware/auth';
 import requireRole from '../middleware/roleGuard';
 import { ActaCreateSchema, ActaUpdateSchema } from '../models/acta.model';
 import * as svc from '../services/acta.service';
+import * as otSvc from '../services/ordenTrabajo.service';
 
 const router = Router();
 router.use(authenticate);
@@ -38,27 +39,27 @@ router.get('/:id', async (req: AuthRequest, res: Response, next: NextFunction) =
   } catch (e) { next(e); }
 });
 
-router.post('/borrador', requireRole('admin', 'recepcionista'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/borrador', requireRole('admin', 'recepcionista', 'tecnico'), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     res.status(201).json(await svc.guardarBorrador(req.body));
   } catch (e) { next(e); }
 });
 
-router.post('/', requireRole('admin', 'recepcionista'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/', requireRole('admin', 'recepcionista', 'tecnico'), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const datos = ActaCreateSchema.parse(req.body);
     res.status(201).json(await svc.crearActa(datos));
   } catch (e) { next(e); }
 });
 
-router.put('/:id', requireRole('admin', 'recepcionista'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.put('/:id', requireRole('admin', 'recepcionista', 'tecnico'), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const datos = ActaUpdateSchema.parse(req.body);
     res.json(await svc.actualizarActa(p(req).id, datos));
   } catch (e) { next(e); }
 });
 
-router.patch('/:id/cerrar', requireRole('admin', 'recepcionista'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.patch('/:id/cerrar', requireRole('admin', 'recepcionista', 'tecnico'), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     res.json(await svc.actualizarActa(p(req).id, { status: 'cerrada' }));
   } catch (e) { next(e); }
@@ -67,6 +68,14 @@ router.patch('/:id/cerrar', requireRole('admin', 'recepcionista'), async (req: A
 router.delete('/:id', requireRole('admin'), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     res.json(await svc.eliminarActa(p(req).id));
+  } catch (e) { next(e); }
+});
+
+/** Crea una OT a partir del acta (o devuelve la existente si ya fue creada) */
+router.post('/:id/iniciar-ot', requireRole('admin'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const ot = await otSvc.crearOTDesdeActa(p(req).id);
+    res.status(201).json(ot);
   } catch (e) { next(e); }
 });
 

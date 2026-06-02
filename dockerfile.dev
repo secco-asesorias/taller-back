@@ -1,4 +1,6 @@
-FROM node:20-alpine
+FROM ghcr.io/puppeteer/puppeteer:latest
+USER root
+ENV PUPPETEER_CACHE_DIR=/home/pptruser/.cache/puppeteer
 WORKDIR /app
 COPY package*.json tsconfig.json nodemon.json ./
 RUN npm install
