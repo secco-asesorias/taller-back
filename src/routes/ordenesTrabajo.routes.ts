@@ -36,12 +36,86 @@ router.put('/:id', requireRole('admin', 'tecnico'), async (req: AuthRequest, res
 // ── Asignar técnico (por tecnico_id o por email) ───────────────────────────
 router.patch('/:id/asignar', requireRole('admin'), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const { tecnico_id } = req.body as { tecnico_id?: string };
-    if (!tecnico_id?.trim()) {
-      res.status(400).json({ error: 'tecnico_id es requerido (id de perfiles del técnico)' });
+    let { tecnico_id, tecnico_nombre, email } = req.body as {
+      tecnico_id?: string;
+      tecnico_nombre?: string;
+      email?: string;
+    };
+
+    // Si viene email, buscar el técnico en perfiles
+    if (email && !tecnico_id) {
+      const { data: perfil, error } = await supabase
+        .from('perfiles')
+        .select('id, nombre')
+        .eq('email', email.trim().toLowerCase())
+        .eq('rol', 'tecnico')
+        .maybeSingle();
+
+      if (error) throw error;
+      if (!perfil) {
+        res.status(404).json({ error: `No se encontró un técnico con email: ${email}` });
+        return;
+      }
+      tecnico_id = (perfil as { id: string; nombre: string }).id;
+      tecnico_nombre = (perfil as { id: string; nombre: string }).nombre;
+    }
+
+    res.json(await svc.actualizarOT(p(req).id, {
+      status:         'asignada',
+      tecnico_id:     tecnico_id || null,
+      tecnico_nombre: tecnico_nombre || null,
+      nota_historial: `Asignado a técnico: ${tecnico_nombre || email || ''}`,
+    }));
+  } catch (e) { next(e); }
+});
+
+// ── Mecánico inicia la OT ──────────────────────────────────────────────────
+router.patch('/:id/iniciar-ot', requireRole('tecnico', 'admin'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const ot = await svc.cargarOTCompleta(p(req).id);
+    const otData = ot as Record<string, unknown>;
+
+    // Ownership check para técnicos
+    if (req.perfil?.rol === 'tecnico' && otData.tecnico_id !== req.user?.id) {
+      res.status(403).json({ error: 'Esta OT no está asignada a tu usuario' });
       return;
     }
-    res.json(await svc.asignarTecnicoOT(p(req).id, tecnico_id.trim()));
+
+    res.json(await svc.actualizarOT(p(req).id, {
+      status:          'en_proceso',
+      inicio_servicio: new Date().toISOString(),
+      nota_historial:  'Servicio iniciado por el técnico',
+    }));
+  } catch (e) { next(e); }
+});
+
+// ── Mecánico termina la OT → pasa a revisión del TC ──────────────────────
+router.patch('/:id/terminar-ot', requireRole('tecnico', 'admin'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const ot = await svc.cargarOTCompleta(p(req).id);
+    const otData = ot as Record<string, unknown>;
+
+    // Ownership check para técnicos
+    if (req.perfil?.rol === 'tecnico' && otData.tecnico_id !== req.user?.id) {
+      res.status(403).json({ error: 'Esta OT no está asignada a tu usuario' });
+      return;
+    }
+
+    res.json(await svc.actualizarOT(p(req).id, {
+      status:           'en_revision',
+      termino_servicio: new Date().toISOString(),
+      nota_historial:   'Servicio terminado por el técnico — en espera de revisión TC',
+    }));
+  } catch (e) { next(e); }
+});
+
+// ── TC aprueba y finaliza la OT ───────────────────────────────────────────
+router.patch('/:id/aprobar', requireRole('admin'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    res.json(await svc.actualizarOT(p(req).id, {
+      status:         'finalizada',
+      nota_historial: 'OT aprobada y finalizada por Torre de Control',
+    }));
   } catch (e) { next(e); }
 });
 
