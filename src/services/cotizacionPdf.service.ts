@@ -74,6 +74,7 @@ export interface PresupuestoPdfContext {
     descuento: string;
     total: string;
   };
+  notas?: string;
   /** Data URL del logo; lo inyecta el backend al generar el PDF. */
   logoSrc?: string;
 }
@@ -201,11 +202,15 @@ function pdfLineFromBodyRecord(r: Record<string, unknown>): PdfLineRow {
 }
 
 function presupuestoContextFromRow(row: Record<string, unknown>): PresupuestoPdfContext {
-  const clienteDb = asRecord(row.clientes);
-  const vehDb = asRecord(row.vehiculos);
-  const acta = asRecord(row.actas);
-  const numActa = acta?.numero_acta;
-  const cotNum = numActa != null ? String(numActa) : String(row.id ?? '').slice(0, 8);
+  const clienteDb  = asRecord(row.clientes);
+  const vehDb      = asRecord(row.vehiculos);
+  const acta       = asRecord(row.actas);
+  const vistaCliente = asRecord(row.vista_cliente) ?? {};
+  const cliManual  = asRecord(vistaCliente.cliente_manual) ?? {};
+  const vehManual  = asRecord(vistaCliente.vehiculo_manual) ?? {};
+  const numActa    = acta?.numero_acta;
+  const cotNum     = numActa != null ? String(numActa) : String(row.id ?? '').slice(0, 8);
+  const diasValidez = pickStr(String((vistaCliente.dias_validez as number) || 7));
 
   const itemsRaw = Array.isArray(row.items) ? (row.items as Record<string, unknown>[]) : [];
   const lines = itemsRaw.map((it) => pdfLineFromDb(it));
@@ -221,19 +226,19 @@ function presupuestoContextFromRow(row: Record<string, unknown>): PresupuestoPdf
   return {
     fecha: formatFechaEs(row.updated_at ?? row.created_at),
     cotizacionNumero: cotNum,
-    diasValidez: '7',
+    diasValidez,
     cliente: {
-      nombre: pickStr(clienteDb?.nombre, '—'),
-      telefono: pickStr(clienteDb?.telefono),
-      correo: pickStr(clienteDb?.correo, clienteDb?.email),
+      nombre: pickStr(clienteDb?.nombre, cliManual.nombre, '—'),
+      telefono: pickStr(clienteDb?.telefono, cliManual.telefono),
+      correo: pickStr(clienteDb?.correo, clienteDb?.email, cliManual.email),
     },
     vehiculo: {
-      patente: pickStr(vehDb?.patente, '—'),
-      marca: pickStr(vehDb?.marca),
-      modelo: pickStr(vehDb?.modelo),
-      anio: pickStr(vehDb?.anio),
-      kilometraje: pickStr(vehDb?.kilometraje, acta?.kilometraje),
-      vin: pickStr(vehDb?.vin, vehDb?.chasis),
+      patente: pickStr(vehDb?.patente, vehManual.patente, '—'),
+      marca: pickStr(vehDb?.marca, vehManual.marca),
+      modelo: pickStr(vehDb?.modelo, vehManual.modelo),
+      anio: pickStr(vehDb?.anio, vehManual.anio),
+      kilometraje: pickStr(vehDb?.kilometraje, acta?.kilometraje, vehManual.km),
+      vin: pickStr(vehDb?.vin, vehDb?.chasis, vehManual.vin),
     },
     itemsRepuestos,
     itemsManoObra,
@@ -245,6 +250,7 @@ function presupuestoContextFromRow(row: Record<string, unknown>): PresupuestoPdf
       descuento: formatEnteroCl(desc),
       total: formatEnteroCl(totalFinal),
     },
+    notas: pickStr(row.notas),
   };
 }
 
@@ -301,6 +307,7 @@ export function mergePresupuestoFromBodyAndRow(
     itemsRepuestos,
     itemsManoObra,
     resumen,
+    notas: pickStr(body.notas, base.notas),
   };
 }
 

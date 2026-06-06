@@ -4,6 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Propuesta de Servicio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 
   <style>
     * {
@@ -13,172 +16,209 @@
     }
 
     body {
-      font-family: Arial, Helvetica, sans-serif;
+      font-family: 'Inter', Arial, sans-serif;
       background: #f4f6f8;
       color: #1f2937;
-      padding: 30px;
+      padding: 24px;
+      font-size: 14px;
     }
 
     .document {
-      max-width: 1000px;
+      max-width: 960px;
       margin: 0 auto;
-      background: transparent;
-      border-radius: 0;
-      overflow: visible;
-      box-shadow: none;
+      background: #ffffff;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 2px 20px rgba(0,0,0,0.08);
     }
 
-    .logo-top {
-      text-align: center;
-      padding: 32px 32px 24px;
-      border-bottom: 1px solid #e5e7eb;
-    }
-
-    .header-logo {
-      display: block;
-      margin: 0 auto;
-      width: auto;
-      height: auto;
-      max-width: 600px;
-      max-height: 200px;
-      object-fit: contain;
-    }
-
+    /* ── ENCABEZADO ──────────────────────────────── */
     .header {
-      background: transparent;
-      color: #111827;
-      padding: 24px 32px 32px;
+      background: #111827;
+      color: #ffffff;
+      padding: 28px 36px;
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
-      gap: 20px;
-      border-bottom: 1px solid #e5e7eb;
+      gap: 24px;
     }
 
     .header-left {
+      display: flex;
+      align-items: center;
+      gap: 20px;
       min-width: 0;
     }
 
-    .header-titles {
-      min-width: 0;
+    .header-logo {
+      height: 52px;
+      width: auto;
+      object-fit: contain;
+      flex-shrink: 0;
     }
 
-    .header-left h1 {
-      font-size: 32px;
-      margin-bottom: 8px;
-    }
-
-    .header-left p {
-      opacity: 0.85;
-      font-size: 14px;
-      color: #4b5563;
-    }
-
-    .quote-info {
-      text-align: right;
-    }
-
-    .quote-info .label {
-      font-size: 12px;
-      color: #6b7280;
+    .header-titles h1 {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
       margin-bottom: 4px;
     }
 
-    .quote-info .value {
-      font-size: 18px;
-      font-weight: bold;
-      margin-bottom: 12px;
+    .header-titles p {
+      font-size: 12px;
+      color: #9ca3af;
+      font-weight: 400;
     }
 
+    .header-right {
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    .header-right .meta-row {
+      margin-bottom: 6px;
+    }
+
+    .header-right .meta-label {
+      font-size: 10px;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 2px;
+    }
+
+    .header-right .meta-value {
+      font-size: 15px;
+      font-weight: 600;
+      color: #ffffff;
+    }
+
+    .badge {
+      display: inline-block;
+      margin-top: 8px;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      background: #a98225;
+      color: #ffffff;
+    }
+
+    /* ── CONTENIDO ───────────────────────────────── */
     .content {
-      padding: 32px;
+      padding: 28px 36px;
     }
 
     .section {
-      margin-bottom: 32px;
-    }
-
-    /* Veh?culo en p?gina nueva (PDF / impresi?n) */
-    .section-vehiculo {
-      page-break-before: always;
-      break-before: page;
-      padding-top: 8px;
-    }
-    
-    .section-price {
-      page-break-before: always;
-      break-before: page;
-      padding-top: 8px;
+      margin-bottom: 28px;
     }
 
     .section-title {
-      font-size: 18px;
-      font-weight: bold;
-      margin-bottom: 18px;
-      color: #111827;
-      border-bottom: 2px solid #e5e7eb;
-      padding-bottom: 10px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: #ffffff;
+      background: #111827;
+      padding: 8px 14px;
+      border-radius: 6px;
+      margin-bottom: 16px;
     }
 
-    .subsection-title {
-      font-size: 15px;
-      font-weight: bold;
-      margin: 20px 0 12px;
-      color: #374151;
-    }
-
-    .subsection-title:first-of-type {
-      margin-top: 0;
-    }
-
+    /* ── GRID DE INFORMACIÓN ─────────────────────── */
     .info-grid {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
-      gap: 16px;
+      gap: 12px;
+    }
+
+    .info-grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
     }
 
     .info-card {
       background: #f9fafb;
       border: 1px solid #e5e7eb;
-      border-radius: 12px;
-      padding: 16px;
+      border-radius: 8px;
+      padding: 14px 16px;
     }
 
     .info-label {
-      font-size: 12px;
+      font-size: 10px;
       text-transform: uppercase;
+      letter-spacing: 0.6px;
       color: #6b7280;
-      margin-bottom: 6px;
-      font-weight: bold;
+      margin-bottom: 5px;
+      font-weight: 600;
     }
 
     .info-value {
-      font-size: 16px;
-      font-weight: 500;
+      font-size: 15px;
+      font-weight: 600;
       color: #111827;
+      word-break: break-word;
+    }
+
+    /* ── TABLAS DE ÍTEMS ─────────────────────────── */
+    .subsection-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: #374151;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin: 20px 0 10px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e5e7eb;
     }
 
     table {
       width: 100%;
       border-collapse: collapse;
+      font-size: 13px;
     }
 
     thead {
-      background: #111827;
-      color: white;
+      background: #1f2937;
     }
 
     th {
       text-align: left;
-      padding: 14px;
-      font-size: 13px;
+      padding: 10px 14px;
+      font-size: 11px;
+      font-weight: 600;
       text-transform: uppercase;
+      letter-spacing: 0.4px;
+      color: #d1d5db;
     }
 
     td {
-      padding: 16px 14px;
-      border-bottom: 1px solid #e5e7eb;
+      padding: 12px 14px;
+      border-bottom: 1px solid #f3f4f6;
       vertical-align: top;
+      color: #374151;
+    }
+
+    td.num {
+      color: #6b7280;
+      font-size: 12px;
+      width: 28px;
+    }
+
+    td strong {
+      font-weight: 600;
+      color: #111827;
+      display: block;
+      margin-bottom: 2px;
+    }
+
+    td .item-detalle {
+      font-size: 11px;
+      color: #6b7280;
+      margin-top: 2px;
     }
 
     tbody tr:nth-child(even) {
@@ -189,132 +229,158 @@
       text-align: right;
       white-space: nowrap;
       font-weight: 600;
+      color: #111827;
+      min-width: 90px;
+    }
+
+    /* ── RESUMEN FINANCIERO ──────────────────────── */
+    .summary-wrap {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 24px;
     }
 
     .summary {
-      margin-left: auto;
       width: 380px;
       background: #f9fafb;
-      border-radius: 16px;
-      padding: 24px;
+      border-radius: 12px;
+      padding: 22px 24px;
       border: 1px solid #e5e7eb;
     }
 
     .summary-row {
       display: flex;
       justify-content: space-between;
-      margin-bottom: 14px;
-      font-size: 15px;
+      align-items: center;
+      padding: 7px 0;
+      font-size: 14px;
+      color: #374151;
+      border-bottom: 1px solid #f3f4f6;
     }
 
-    .summary-row.total {
-      margin-top: 20px;
-      padding-top: 20px;
-      border-top: 2px solid #d1d5db;
-      font-size: 22px;
-      font-weight: bold;
+    .summary-row:last-child {
+      border-bottom: none;
+    }
+
+    .summary-row span:last-child {
+      font-weight: 600;
       color: #111827;
     }
 
+    .summary-row.discount span:last-child {
+      color: #dc2626;
+    }
+
+    .summary-row.total {
+      margin-top: 12px;
+      padding: 14px 16px;
+      border-radius: 8px;
+      background: #faf4e0;
+      border: 1.5px solid #a98225;
+      font-size: 17px;
+      font-weight: 700;
+    }
+
+    .summary-row.total span:first-child {
+      color: #111827;
+    }
+
+    .summary-row.total span:last-child {
+      color: #a98225;
+      font-size: 20px;
+    }
+
+    /* ── NOTAS / COMENTARIOS ─────────────────────── */
+    .notes-box {
+      background: #faf4e0;
+      border: 1px solid #d4a843;
+      border-left: 4px solid #a98225;
+      border-radius: 6px;
+      padding: 14px 18px;
+      font-size: 13.5px;
+      color: #374151;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    /* ── PIE DE PÁGINA ───────────────────────────── */
     .footer {
-      padding: 24px 32px;
+      padding: 18px 36px;
       background: #f9fafb;
       border-top: 1px solid #e5e7eb;
-      font-size: 13px;
+      font-size: 12px;
       color: #6b7280;
       text-align: center;
     }
 
+    /* ── SALTOS DE PÁGINA ────────────────────────── */
     @media print {
       body {
         background: white;
         padding: 0;
       }
-
       .document {
         box-shadow: none;
         border-radius: 0;
       }
-
       .section-vehiculo {
         page-break-before: always;
         break-before: page;
       }
-    }
-
-    @media (max-width: 768px) {
-      .header {
-        flex-direction: column;
-      }
-
-      .quote-info {
-        text-align: left;
-      }
-
-      .info-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .summary {
-        width: 100%;
-      }
-
-      table {
-        font-size: 14px;
+      .section-precio {
+        page-break-before: always;
+        break-before: page;
       }
     }
   </style>
 </head>
 <body>
-
   <div class="document">
 
-    {{#if logoSrc}}
-    <div class="logo-top">
-      <img class="header-logo" src="{{{logoSrc}}}" alt="Secco Automotriz" />
-    </div>
-    {{/if}}
-
-    <!-- HEADER -->
+    <!-- ENCABEZADO -->
     <div class="header">
       <div class="header-left">
+        {{#if logoSrc}}
+        <img class="header-logo" src="{{{logoSrc}}}" alt="Secco Automotriz" />
+        {{/if}}
         <div class="header-titles">
           <h1>Propuesta de Servicio</h1>
-          <p>Documento de cotizaci?n y detalle de trabajos</p>
+          <p>Secco Automotriz — Servicio técnico especializado</p>
         </div>
       </div>
 
-      <div class="quote-info">
-        <div class="label">Fecha</div>
-        <div class="value">{{fecha}}</div>
-
-        <div class="label">Cotizaci?n</div>
-        <div class="value">#{{cotizacionNumero}}</div>
+      <div class="header-right">
+        <div class="meta-row">
+          <div class="meta-label">Fecha</div>
+          <div class="meta-value">{{fecha}}</div>
+        </div>
+        <div class="meta-row">
+          <div class="meta-label">Cotización</div>
+          <div class="meta-value">#{{cotizacionNumero}}</div>
+        </div>
+        <span class="badge">Presupuesto</span>
       </div>
     </div>
 
     <div class="content">
 
-      <!-- CLIENTE -->
+      <!-- INFORMACIÓN DEL CLIENTE -->
       <div class="section">
-        <div class="section-title">Informaci?n del Cliente</div>
-
+        <div class="section-title">Información del cliente</div>
         <div class="info-grid">
           <div class="info-card">
             <div class="info-label">Cliente</div>
             <div class="info-value">{{cliente.nombre}}</div>
           </div>
-
           <div class="info-card">
-            <div class="info-label">Tel?fono</div>
+            <div class="info-label">Teléfono</div>
             <div class="info-value">{{cliente.telefono}}</div>
           </div>
-
           <div class="info-card">
-            <div class="info-label">Correo</div>
+            <div class="info-label">Correo electrónico</div>
             <div class="info-value">{{cliente.correo}}</div>
           </div>
-
           <div class="info-card">
             <div class="info-label">Patente</div>
             <div class="info-value">{{vehiculo.patente}}</div>
@@ -322,28 +388,22 @@
         </div>
       </div>
 
-      <!-- VEHICULO (pagina siguiente) -->
+      <!-- DATOS DEL VEHÍCULO -->
       <div class="section section-vehiculo">
-        <div class="section-title">Datos del Vehículo</div>
-
+        <div class="section-title">Datos del vehículo</div>
         <div class="info-grid">
           <div class="info-card">
             <div class="info-label">Vehículo</div>
-            <div class="info-value">
-              {{vehiculo.marca}} {{vehiculo.modelo}}
-            </div>
+            <div class="info-value">{{vehiculo.marca}} {{vehiculo.modelo}}</div>
           </div>
-
           <div class="info-card">
-            <div class="info-label">A?o</div>
+            <div class="info-label">Año</div>
             <div class="info-value">{{vehiculo.anio}}</div>
           </div>
-
           <div class="info-card">
             <div class="info-label">Kilometraje</div>
             <div class="info-value">{{vehiculo.kilometraje}}</div>
           </div>
-
           <div class="info-card">
             <div class="info-label">VIN / Chasis</div>
             <div class="info-value">{{vehiculo.vin}}</div>
@@ -351,31 +411,28 @@
         </div>
       </div>
 
-      <!-- DETALLE -->
+      <!-- DETALLE DE TRABAJOS -->
       <div class="section">
-        <div class="section-title">Detalle de Trabajos</div>
+        <div class="section-title">Detalle de trabajos</div>
 
         {{#if itemsRepuestos.length}}
-        <div class="subsection-title">Repuestos y servicios</div>
+        <div class="subsection-label">Repuestos y servicios</div>
         <table>
           <thead>
             <tr>
               <th>#</th>
               <th>Descripción</th>
-              <th>Cantidad</th>
+              <th>Cant.</th>
               <th class="money">Total</th>
             </tr>
           </thead>
           <tbody>
             {{#each itemsRepuestos}}
             <tr>
-              <td>{{index}}</td>
+              <td class="num">{{index}}</td>
               <td>
                 <strong>{{descripcion}}</strong>
-                {{#if detalle}}
-                <br />
-                <small>{{detalle}}</small>
-                {{/if}}
+                {{#if detalle}}<div class="item-detalle">{{detalle}}</div>{{/if}}
               </td>
               <td>{{cantidad}}</td>
               <td class="money">${{total}}</td>
@@ -386,26 +443,23 @@
         {{/if}}
 
         {{#if itemsManoObra.length}}
-        <div class="subsection-title">Mano de obra</div>
+        <div class="subsection-label">Mano de obra</div>
         <table>
           <thead>
             <tr>
               <th>#</th>
               <th>Descripción</th>
-              <th>Cantidad</th>
+              <th>Cant.</th>
               <th class="money">Total</th>
             </tr>
           </thead>
           <tbody>
             {{#each itemsManoObra}}
             <tr>
-              <td>{{index}}</td>
+              <td class="num">{{index}}</td>
               <td>
                 <strong>{{descripcion}}</strong>
-                {{#if detalle}}
-                <br />
-                <small>{{detalle}}</small>
-                {{/if}}
+                {{#if detalle}}<div class="item-detalle">{{detalle}}</div>{{/if}}
               </td>
               <td>{{cantidad}}</td>
               <td class="money">${{total}}</td>
@@ -414,54 +468,56 @@
           </tbody>
         </table>
         {{/if}}
-      </div>
 
-      <!-- RESUMEN -->
-      <div class="section section-price">
-        <div class="summary">
-
-          <div class="summary-row">
-            <span>Neto</span>
-            <strong>${{resumen.neto}}</strong>
+        <!-- RESUMEN FINANCIERO -->
+        <div class="summary-wrap section-precio">
+          <div class="summary">
+            <div class="summary-row">
+              <span>Neto</span>
+              <span>${{resumen.neto}}</span>
+            </div>
+            <div class="summary-row">
+              <span>IVA (19%)</span>
+              <span>${{resumen.iva}}</span>
+            </div>
+            <div class="summary-row">
+              <span>Subtotal</span>
+              <span>${{resumen.subtotal}}</span>
+            </div>
+            <div class="summary-row">
+              <span>Cargo por servicio</span>
+              <span>${{resumen.cargoServicio}}</span>
+            </div>
+            {{#if resumen.descuento}}
+            <div class="summary-row discount">
+              <span>Descuento</span>
+              <span>-${{resumen.descuento}}</span>
+            </div>
+            {{/if}}
+            <div class="summary-row total">
+              <span>Total Final</span>
+              <span>${{resumen.total}}</span>
+            </div>
           </div>
-
-          <div class="summary-row">
-            <span>IVA (19%)</span>
-            <strong>${{resumen.iva}}</strong>
-          </div>
-
-          <div class="summary-row">
-            <span>Subtotal</span>
-            <strong>${{resumen.subtotal}}</strong>
-          </div>
-
-          <div class="summary-row">
-            <span>Cargo por servicio</span>
-            <strong>${{resumen.cargoServicio}}</strong>
-          </div>
-
-          <div class="summary-row">
-            <span>Descuento</span>
-            <strong>${{resumen.descuento}}</strong>
-          </div>
-
-          <div class="summary-row total">
-            <span>Total Final</span>
-            <span>${{resumen.total}}</span>
-          </div>
-
         </div>
       </div>
 
+      <!-- COMENTARIOS PARA EL CLIENTE -->
+      {{#if notas}}
+      <div class="section">
+        <div class="section-title">Comentarios para el cliente</div>
+        <div class="notes-box">{{notas}}</div>
+      </div>
+      {{/if}}
+
     </div>
 
-    <!-- FOOTER -->
+    <!-- PIE DE PÁGINA -->
     <div class="footer">
-      Gracias por confiar en nosotros. Esta propuesta tiene una validez de
-      {{diasValidez}} d?as.
+      Esta propuesta tiene una validez de {{diasValidez}} días a partir de la fecha de emisión.
+      Gracias por confiar en Secco Automotriz.
     </div>
 
   </div>
-
 </body>
 </html>
