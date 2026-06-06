@@ -72,14 +72,37 @@ export async function crearOTDesdeActa(actaId: string) {
     .single();
   if (errActa) throw errActa;
 
-  // 3. Buscar cotización vinculada al acta (la más reciente)
-  const { data: cot } = await supabase
+  // 3. Buscar cotización vinculada al acta: primero por acta_id directo,
+  //    si no se encuentra buscar también via diagnostico.
+  let cot: Record<string, unknown> | null = null;
+
+  const { data: cotDirecta } = await supabase
     .from('cotizaciones')
     .select('*')
     .eq('acta_id', actaId)
-    .order('created_at', { ascending: false })
+    .order('updated_at', { ascending: false })
     .limit(1)
     .maybeSingle();
+
+  if (cotDirecta) {
+    cot = cotDirecta as Record<string, unknown>;
+  } else {
+    const { data: diags } = await supabase
+      .from('diagnosticos')
+      .select('id')
+      .eq('acta_id', actaId);
+    const diagIds = ((diags || []) as { id: string }[]).map(d => d.id);
+    if (diagIds.length) {
+      const { data: cotViaDiag } = await supabase
+        .from('cotizaciones')
+        .select('*')
+        .in('diagnostico_id', diagIds)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (cotViaDiag) cot = cotViaDiag as Record<string, unknown>;
+    }
+  }
 
   // 4. Estructurar repuestos e instrucciones desde items de la cotización
   const { repuestos, instrucciones } = cot
