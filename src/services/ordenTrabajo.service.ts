@@ -55,27 +55,68 @@ export function estructurarOTDesdeItems(items: OTItem[] = []) {
   return { repuestos, instrucciones };
 }
 
-export async function crearOTDesdeActa(actaId: string) {
-  // 1. Duplicate check — si ya existe OT para esta acta, devolverla
-  const { data: existente } = await supabase
-    .from('ordenes_trabajo')
-    .select('id, numero_ot, status')
-    .eq('acta_id', actaId)
-    .maybeSingle();
-  if (existente) return existente;
+/** Normaliza patente para comparar (trim + uppercase + sin espacios/guiones). */
+function normalizarPatente(value: unknown): string {
+  if (value == null) return '';
+  return String(value).trim().toUpperCase().replace(/[\s-]/g, '');
+}
 
-  // 2. Obtener el acta
-  const { data: acta, error: errActa } = await supabase
-    .from('actas')
-    .select('*, vehiculos:vehiculo_id(*), clientes:cliente_id(*)')
-    .eq('id', actaId)
-    .single();
-  if (errActa) throw errActa;
+function patenteDeCotizacion(cot: Record<string, unknown>): string {
+  const vc = (cot.vista_cliente as Record<string, unknown> | null) || {};
+  const veh = (vc.vehiculo_manual as Record<string, unknown> | null) || {};
+  return normalizarPatente(veh.patente);
+}
 
-  // 3. Buscar cotización vinculada al acta: primero por acta_id directo,
-  //    si no se encuentra buscar también via diagnostico.
-  let cot: Record<string, unknown> | null = null;
+function cotizacionTieneRepuestos(cot: Record<string, unknown>): boolean {
+  const items = (cot.items as OTItem[] | null) || [];
+  return items.some(it => String(it.tipo || '').toLowerCase().includes('repuesto') && String(it.descripcion || '').trim());
+}
 
+/**
+ * Fallback: cuando el presupuesto no está vinculado al acta por `acta_id` ni vía diagnóstico,
+ * buscar el más reciente cuya patente manual (`vista_cliente.vehiculo_manual.patente`) coincida
+ * con la del vehículo del acta. Prioriza los que tienen repuestos. Los presupuestos casi nunca
+ * tienen `vehiculo_id`, por eso se matchea por patente.
+ */
+async function buscarCotizacionPorPatente(patente: string): Promise<Record<string, unknown> | null> {
+  const objetivo = normalizarPatente(patente);
+  if (!objetivo) return null;
+
+  const { data: candidatas } = await supabase
+    .from('cotizaciones')
+    .select('*')
+    .not('status', 'eq', 'rechazada')
+    .order('updated_at', { ascending: false })
+    .limit(80);
+
+  const rows = ((candidatas || []) as Record<string, unknown>[])
+    .filter(c => patenteDeCotizacion(c) === objetivo);
+  if (!rows.length) return null;
+
+  // Preferir la primera (más reciente) que tenga repuestos; si ninguna, la más reciente.
+  return rows.find(cotizacionTieneRepuestos) || rows[0];
+}
+
+/** Una OT está "vacía" si no tiene ningún repuesto con nombre no vacío. */
+function repuestosVacios(repuestos: unknown): boolean {
+  const arr = Array.isArray(repuestos) ? repuestos as Record<string, unknown>[] : [];
+  return !arr.some(r => String(r?.nombre || '').trim());
+}
+
+/** Nota de historial al asociar un presupuesto (marca si fue por patente). */
+function notaCotizacion(cot: Record<string, unknown>, origen: string | null): string {
+  return `COT-${cot.numero_cotizacion}${origen === 'patente' ? ' (asociado por patente)' : ''}`;
+}
+
+/**
+ * Busca el presupuesto asociado a un acta, en orden de prioridad:
+ * acta_id directo → vía diagnóstico → fallback por patente del vehículo del acta.
+ * El acta debe venir con `vehiculos` poblado (para el fallback por patente).
+ */
+async function buscarCotizacionParaActa(
+  actaId: string,
+  acta: Record<string, unknown>,
+): Promise<{ cot: Record<string, unknown> | null; origen: 'acta' | 'diagnostico' | 'patente' | null }> {
   const { data: cotDirecta } = await supabase
     .from('cotizaciones')
     .select('*')
@@ -83,51 +124,109 @@ export async function crearOTDesdeActa(actaId: string) {
     .order('updated_at', { ascending: false })
     .limit(1)
     .maybeSingle();
+  if (cotDirecta) return { cot: cotDirecta as Record<string, unknown>, origen: 'acta' };
 
-  if (cotDirecta) {
-    cot = cotDirecta as Record<string, unknown>;
-  } else {
-    const { data: diags } = await supabase
-      .from('diagnosticos')
-      .select('id')
-      .eq('acta_id', actaId);
-    const diagIds = ((diags || []) as { id: string }[]).map(d => d.id);
-    if (diagIds.length) {
-      const { data: cotViaDiag } = await supabase
-        .from('cotizaciones')
-        .select('*')
-        .in('diagnostico_id', diagIds)
-        .order('updated_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (cotViaDiag) cot = cotViaDiag as Record<string, unknown>;
-    }
+  const { data: diags } = await supabase
+    .from('diagnosticos')
+    .select('id')
+    .eq('acta_id', actaId);
+  const diagIds = ((diags || []) as { id: string }[]).map(d => d.id);
+  if (diagIds.length) {
+    const { data: cotViaDiag } = await supabase
+      .from('cotizaciones')
+      .select('*')
+      .in('diagnostico_id', diagIds)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (cotViaDiag) return { cot: cotViaDiag as Record<string, unknown>, origen: 'diagnostico' };
   }
 
-  // 4. Estructurar repuestos e instrucciones desde items de la cotización
+  // Fallback por patente (los presupuestos no suelen tener vehiculo_id).
+  const veh = acta.vehiculos as Record<string, unknown> | null;
+  const cotPorPatente = await buscarCotizacionPorPatente((veh?.patente as string | undefined) ?? '');
+  if (cotPorPatente) return { cot: cotPorPatente, origen: 'patente' };
+
+  return { cot: null, origen: null };
+}
+
+export async function crearOTDesdeActa(actaId: string) {
+  // 1. Obtener el acta (con vehículo/cliente, necesarios para datos de la OT y el fallback)
+  const { data: acta, error: errActa } = await supabase
+    .from('actas')
+    .select('*, vehiculos:vehiculo_id(*), clientes:cliente_id(*)')
+    .eq('id', actaId)
+    .single();
+  if (errActa) throw errActa;
+  const actaRow = acta as Record<string, unknown>;
+
+  // 2. ¿Ya existe OT para esta acta? (robusto ante duplicados: tomar la más antigua)
+  const { data: existentes } = await supabase
+    .from('ordenes_trabajo')
+    .select('id, numero_ot, status, repuestos')
+    .eq('acta_id', actaId)
+    .order('created_at', { ascending: true });
+  const existente = ((existentes || []) as Record<string, unknown>[])[0] || null;
+
+  if (existente) {
+    const vaciaYTemprana = existente.status === 'generada' && repuestosVacios(existente.repuestos);
+    // Si ya tiene repuestos o avanzó de estado, no la tocamos (no pisar trabajo del TC).
+    if (!vaciaYTemprana) return existente;
+
+    // OT vacía: intentar repoblarla con el presupuesto ahora disponible.
+    const { cot, origen } = await buscarCotizacionParaActa(actaId, actaRow);
+    if (!cot) return existente; // sigue sin presupuesto vinculado
+
+    const { repuestos, instrucciones } = estructurarOTDesdeItems((cot.items as OTItem[]) ?? []);
+    const { data: histRow } = await supabase
+      .from('ordenes_trabajo').select('historial').eq('id', existente.id as string).single();
+    const historial = ((histRow as { historial?: unknown[] } | null)?.historial) || [];
+
+    const { data: actualizada, error: errUpd } = await supabase
+      .from('ordenes_trabajo')
+      .update({
+        cotizacion_id: cot.id,
+        repuestos,
+        instrucciones,
+        items:         cot.items ?? [],
+        updated_at:    new Date().toISOString(),
+        historial: [...historial, {
+          ts:     new Date().toISOString(),
+          accion: 'Repuestos cargados desde presupuesto',
+          nota:   notaCotizacion(cot, origen),
+        }],
+      })
+      .eq('id', existente.id as string)
+      .select()
+      .single();
+    if (errUpd) throw errUpd;
+    return actualizada;
+  }
+
+  // 3. No existe OT → buscar presupuesto y crear una nueva (numero_ot por SERIAL)
+  const { cot, origen } = await buscarCotizacionParaActa(actaId, actaRow);
   const { repuestos, instrucciones } = cot
-    ? estructurarOTDesdeItems((cot as Record<string, unknown>).items as OTItem[] ?? [])
+    ? estructurarOTDesdeItems((cot.items as OTItem[]) ?? [])
     : { repuestos: [], instrucciones: [] };
 
-  // 5. Crear OT — numero_ot se asigna automáticamente por SERIAL
   const { data: ot, error: errOT } = await supabase
     .from('ordenes_trabajo')
     .insert({
       acta_id:       actaId,
       cotizacion_id: cot?.id ?? null,
-      vehiculo_id:   (acta as Record<string, unknown>).vehiculo_id ?? null,
-      cliente_id:    (acta as Record<string, unknown>).cliente_id ?? null,
-      km_ingreso:    (acta as Record<string, unknown>).km ?? null,
+      vehiculo_id:   actaRow.vehiculo_id ?? null,
+      cliente_id:    actaRow.cliente_id ?? null,
+      km_ingreso:    actaRow.km ?? null,
       status:        'generada',
       repuestos,
       instrucciones,
-      items:         (cot as Record<string, unknown> | null)?.items ?? [],
+      items:         cot?.items ?? [],
       observaciones: '',
       notas_torre:   '',
       historial: [{
         ts:     new Date().toISOString(),
         accion: 'OT generada desde acta',
-        nota:   cot ? `COT-${(cot as Record<string, unknown>).numero_cotizacion}` : 'sin cotización',
+        nota:   cot ? notaCotizacion(cot, origen) : 'sin cotización',
       }],
     })
     .select()
@@ -147,6 +246,48 @@ export async function aprobarCotizacionYCrearOT(cotizacionId: string) {
     .eq('id', cotizacionId);
   if (errCot) throw errCot;
 
+  // Dedup 1: si ya existe una OT para este presupuesto, devolverla (idempotente ante doble aprobación).
+  const { data: otPorCot } = await supabase
+    .from('ordenes_trabajo')
+    .select('id')
+    .eq('cotizacion_id', cotizacionId)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (otPorCot) return cargarOTCompleta((otPorCot as { id: string }).id);
+
+  // Dedup 2: si la misma acta ya tiene una OT (p. ej. creada antes desde el acta), no duplicar.
+  //          Si está vacía, completarla con los repuestos del presupuesto.
+  if (cot.acta_id) {
+    const { data: otsActa } = await supabase
+      .from('ordenes_trabajo')
+      .select('id, status, repuestos')
+      .eq('acta_id', cot.acta_id as string)
+      .order('created_at', { ascending: true });
+    const otActa = ((otsActa || []) as Record<string, unknown>[])[0];
+    if (otActa) {
+      if (otActa.status === 'generada' && repuestosVacios(otActa.repuestos)) {
+        const { data: histRow } = await supabase
+          .from('ordenes_trabajo').select('historial').eq('id', otActa.id as string).single();
+        const historial = ((histRow as { historial?: unknown[] } | null)?.historial) || [];
+        await supabase.from('ordenes_trabajo').update({
+          cotizacion_id: cotizacionId,
+          repuestos:     estructuraOT.repuestos,
+          instrucciones: estructuraOT.instrucciones,
+          items:         cot.items || [],
+          updated_at:    new Date().toISOString(),
+          historial: [...historial, {
+            ts:     new Date().toISOString(),
+            accion: 'Repuestos cargados desde presupuesto aprobado',
+            nota:   `COT-${cot.numero_cotizacion}`,
+          }],
+        }).eq('id', otActa.id as string);
+      }
+      return cargarOTCompleta(otActa.id as string);
+    }
+  }
+
+  // No hay OT previa → crear una nueva.
   const { data: ot, error: errOT } = await supabase
     .from('ordenes_trabajo')
     .insert({
