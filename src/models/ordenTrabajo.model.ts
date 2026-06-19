@@ -9,8 +9,15 @@ const InstruccionSchema = z.object({
   completada:    z.boolean(),
 });
 
+const PausaSchema = z.object({
+  inicio: z.string(),
+  fin:    z.string().nullable().optional(),
+  estado: z.enum(['pendiente', 'autorizada', 'rechazada']),
+});
+
 export const OTUpdateSchema = z.object({
   status: z.enum(['generada', 'asignada', 'en_proceso', 'en_revision', 'finalizada', 'entregada']).optional(),
+  pausas:           z.array(PausaSchema).optional(),
   tecnico_id:       z.string().uuid().optional().nullable(),
   tecnico_nombre:   z.string().optional().nullable(),
   items:            z.array(z.record(z.string(), z.unknown())).optional(),

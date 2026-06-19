@@ -25,6 +25,16 @@ router.post('/diagnostico', async (req: AuthRequest, res: Response, next: NextFu
   } catch (e) { next(e); }
 });
 
+router.post('/informe', async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { informeId, seccion = 'general', base64, mimetype = 'image/jpeg', ext = 'jpg' } = req.body as Record<string, string>;
+    if (!informeId || !base64) { res.status(400).json({ error: 'Faltan campos requeridos' }); return; }
+    const buffer = Buffer.from(base64.replace(/^data:[^;]+;base64,/, ''), 'base64');
+    const url = await svc.subirFotoInformeBuffer(informeId, seccion, buffer, mimetype, ext);
+    res.status(201).json({ url });
+  } catch (e) { next(e); }
+});
+
 router.delete('/diagnostico', async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     await svc.eliminarFotoDiagnostico(req.body);

@@ -65,6 +65,17 @@ export async function actualizarDiagnostico(id: string, datos: DiagnosticoUpdate
   return data;
 }
 
+export async function eliminarDiagnostico(id: string) {
+  // Borrar hijos primero por si no hay ON DELETE CASCADE.
+  await supabase.from('diagnostico_checklist').delete().eq('diagnostico_id', id);
+  await supabase.from('diagnostico_repuestos').delete().eq('diagnostico_id', id);
+  await supabase.from('diagnostico_fotos').delete().eq('diagnostico_id', id);
+
+  const { error } = await supabase.from('diagnosticos').delete().eq('id', id);
+  if (error) throw error;
+  return { ok: true };
+}
+
 export async function guardarChecklist(diagnosticoId: string, items: ChecklistItem[]) {
   if (!items?.length) return [];
 

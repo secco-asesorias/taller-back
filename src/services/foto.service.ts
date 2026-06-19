@@ -70,6 +70,20 @@ export async function subirFotoDiagnosticoBuffer(
   return data;
 }
 
+export async function subirFotoInformeBuffer(
+  informeId: string, seccion: string, buffer: Buffer, mimetype: string, ext: string
+): Promise<string> {
+  const path = `informes/${informeId}/${storageSafeSlug(seccion)}/${Date.now()}.${ext}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from(FOTOS_BUCKET)
+    .upload(path, buffer, { contentType: mimetype, upsert: true });
+  if (uploadError) throw uploadError;
+
+  const { data: urlData } = supabase.storage.from(FOTOS_BUCKET).getPublicUrl(path);
+  return urlData.publicUrl;
+}
+
 export async function eliminarFotoDiagnostico(foto: { id?: string; diagnostico_id?: string; seccion?: number; url?: string }): Promise<void> {
   let query = supabase.from('diagnostico_fotos').delete();
   if (foto.id) {
