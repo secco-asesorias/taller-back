@@ -55,6 +55,32 @@ export async function crearUsuario(datos: UsuarioCreate) {
   };
 }
 
+export async function actualizarUsuario(id: string, datos: { nombre?: string; rol?: string }) {
+  const update: Record<string, unknown> = {};
+  if (datos.nombre !== undefined) update.nombre = datos.nombre;
+  if (datos.rol !== undefined) update.rol = datos.rol;
+
+  const { data, error } = await supabase
+    .from('perfiles')
+    .update(update)
+    .eq('id', id)
+    .select('id, email, nombre, rol, created_at')
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function eliminarUsuario(id: string) {
+  // Borrar el perfil y la cuenta de Auth. Si en Auth ya no existe, no es fatal.
+  const { error: perfilError } = await supabase.from('perfiles').delete().eq('id', id);
+  if (perfilError) throw perfilError;
+
+  const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(id);
+  if (authError && !/not found/i.test(authError.message)) throw authError;
+
+  return { ok: true };
+}
+
 export async function obtenerUsuarioActual(userId: string, emailAuth?: string) {
   const { data: perfil, error } = await supabase
     .from('perfiles')

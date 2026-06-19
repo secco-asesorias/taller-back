@@ -109,6 +109,70 @@ router.patch('/:id/terminar-ot', requireRole('tecnico', 'admin'), async (req: Au
   } catch (e) { next(e); }
 });
 
+// ── Pausas ─────────────────────────────────────────────────────────────────
+type Pausa = { inicio: string; fin: string | null; estado: 'pendiente' | 'autorizada' | 'rechazada' };
+
+async function cargarPausas(otId: string): Promise<{ ot: Record<string, unknown>; pausas: Pausa[] }> {
+  const ot = await svc.cargarOTCompleta(otId) as Record<string, unknown>;
+  const pausas = (Array.isArray(ot.pausas) ? ot.pausas : []) as Pausa[];
+  return { ot, pausas };
+}
+
+// Mecánico solicita pausa → frena el tiempo y queda pendiente de autorización del TC.
+router.patch('/:id/pausar', requireRole('tecnico', 'admin'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { ot, pausas } = await cargarPausas(p(req).id);
+    if (req.perfil?.rol === 'tecnico' && ot.tecnico_id !== req.user?.id) {
+      res.status(403).json({ error: 'Esta OT no está asignada a tu usuario' });
+      return;
+    }
+    if (pausas.some(p => !p.fin)) { res.status(409).json({ error: 'La OT ya está en pausa' }); return; }
+
+    const nuevas: Pausa[] = [...pausas, { inicio: new Date().toISOString(), fin: null, estado: 'pendiente' }];
+    res.json(await svc.actualizarOT(p(req).id, { pausas: nuevas, nota_historial: 'Mecánico solicitó pausa' }));
+  } catch (e) { next(e); }
+});
+
+// Mecánico resume → cierra la pausa abierta y el tiempo vuelve a contar.
+router.patch('/:id/resumir-ot', requireRole('tecnico', 'admin'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { ot, pausas } = await cargarPausas(p(req).id);
+    if (req.perfil?.rol === 'tecnico' && ot.tecnico_id !== req.user?.id) {
+      res.status(403).json({ error: 'Esta OT no está asignada a tu usuario' });
+      return;
+    }
+    const idx = pausas.findIndex(p => !p.fin);
+    if (idx === -1) { res.status(409).json({ error: 'La OT no está en pausa' }); return; }
+
+    const nuevas = pausas.map((p, i) => i === idx ? { ...p, fin: new Date().toISOString() } : p);
+    res.json(await svc.actualizarOT(p(req).id, { pausas: nuevas, nota_historial: 'Mecánico resumió la OT' }));
+  } catch (e) { next(e); }
+});
+
+// TC autoriza la última pausa pendiente.
+router.patch('/:id/autorizar-pausa', requireRole('admin'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { pausas } = await cargarPausas(p(req).id);
+    const idx = pausas.map(p => p.estado).lastIndexOf('pendiente');
+    if (idx === -1) { res.status(409).json({ error: 'No hay pausa pendiente' }); return; }
+
+    const nuevas = pausas.map((p, i) => i === idx ? { ...p, estado: 'autorizada' as const } : p);
+    res.json(await svc.actualizarOT(p(req).id, { pausas: nuevas, nota_historial: 'TC autorizó la pausa' }));
+  } catch (e) { next(e); }
+});
+
+// TC rechaza la última pausa pendiente (ese tiempo cuenta como trabajado).
+router.patch('/:id/rechazar-pausa', requireRole('admin'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { pausas } = await cargarPausas(p(req).id);
+    const idx = pausas.map(p => p.estado).lastIndexOf('pendiente');
+    if (idx === -1) { res.status(409).json({ error: 'No hay pausa pendiente' }); return; }
+
+    const nuevas = pausas.map((p, i) => i === idx ? { ...p, estado: 'rechazada' as const } : p);
+    res.json(await svc.actualizarOT(p(req).id, { pausas: nuevas, nota_historial: 'TC rechazó la pausa' }));
+  } catch (e) { next(e); }
+});
+
 // ── TC aprueba y finaliza la OT ───────────────────────────────────────────
 router.patch('/:id/aprobar', requireRole('admin'), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {

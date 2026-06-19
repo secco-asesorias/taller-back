@@ -2,11 +2,12 @@ import supabase from '../config/supabase';
 import { cargarCotizacionCompleta } from './cotizacion.service';
 import { OTUpdate } from '../models/ordenTrabajo.model';
 import { resolverTecnicoPorPerfilId } from './tecnico.service';
+import { crearCompraDesdeCotizacion } from './compra.service';
 
 const OT_SELECT = `
   id, numero_ot, status, tecnico_nombre, tecnico_id, created_at, updated_at,
   observaciones, notas_torre, km_ingreso, inicio_servicio, termino_servicio,
-  instrucciones,
+  instrucciones, pausas,
   vehiculos:vehiculo_id (marca, modelo, patente),
   clientes:cliente_id (nombre, telefono)
 `;
@@ -246,6 +247,9 @@ export async function aprobarCotizacionYCrearOT(cotizacionId: string) {
     .eq('id', cotizacionId);
   if (errCot) throw errCot;
 
+  // Generar la compra de repuestos para el encargado de comprar (idempotente; corre en todos los caminos).
+  await crearCompraDesdeCotizacion(cot);
+
   // Dedup 1: si ya existe una OT para este presupuesto, devolverla (idempotente ante doble aprobación).
   const { data: otPorCot } = await supabase
     .from('ordenes_trabajo')
@@ -288,13 +292,16 @@ export async function aprobarCotizacionYCrearOT(cotizacionId: string) {
   }
 
   // No hay OT previa → crear una nueva.
+  // El vehículo/cliente casi nunca están en la cotización (van manuales); se toman del acta vinculada.
+  const acta = (cot.actas ?? {}) as Record<string, unknown>;
   const { data: ot, error: errOT } = await supabase
     .from('ordenes_trabajo')
     .insert({
       cotizacion_id:  cotizacionId,
-      acta_id:        cot.acta_id || null,
-      vehiculo_id:    cot.vehiculo_id || null,
-      cliente_id:     cot.cliente_id || null,
+      acta_id:        cot.acta_id || acta.id || null,
+      vehiculo_id:    cot.vehiculo_id || acta.vehiculo_id || null,
+      cliente_id:     cot.cliente_id || acta.cliente_id || null,
+      km_ingreso:     acta.km ?? null,
       status:         'generada',
       items:          cot.items || [],
       repuestos:      estructuraOT.repuestos,

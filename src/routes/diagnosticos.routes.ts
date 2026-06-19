@@ -64,4 +64,10 @@ router.put('/:id/repuestos', requireRole('admin', 'tecnico'), async (req: AuthRe
   } catch (e) { next(e); }
 });
 
+router.delete('/:id', requireRole('admin'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    res.json(await svc.eliminarDiagnostico(p(req).id));
+  } catch (e) { next(e); }
+});
+
 export default router;
