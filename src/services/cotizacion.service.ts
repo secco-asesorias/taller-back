@@ -308,58 +308,70 @@ export async function buscarCotizacionesPorPatente(
     .select('id')
     .ilike('patente', pattern);
   if (errV) throw errV;
-  if (!vehiculos?.length) return [];
+  const vids = ((vehiculos || []) as { id: string }[]).map((v) => v.id);
 
-  const vids = (vehiculos as { id: string }[]).map((v) => v.id);
-
-  const { data: actas, error: errA } = await supabase
-    .from('actas')
-    .select('id')
-    .in('vehiculo_id', vids);
-  if (errA) throw errA;
-  const actaIds = ((actas || []) as { id: string }[]).map((a) => a.id);
-
-  let qPorVeh = supabase
+  // Patente manual: cotizaciones sin vehiculo_id que guardan la patente en vista_cliente.
+  // Corre siempre (aunque no exista un vehículo con esa patente en la tabla vehiculos).
+  let qPorManual = supabase
     .from('cotizaciones')
     .select(COTIZACION_LIST_SELECT)
-    .in('vehiculo_id', vids);
-  if (statusCotizacion) qPorVeh = qPorVeh.eq('status', statusCotizacion);
+    .ilike('vista_cliente->vehiculo_manual->>patente', pattern);
+  if (statusCotizacion) qPorManual = qPorManual.eq('status', statusCotizacion);
+  const { data: porManual, error: eM } = await qPorManual;
+  if (eM) throw eM;
 
-  const { data: porVehiculo, error: e1 } = await qPorVeh;
-  if (e1) throw e1;
-
+  let porVehiculo: unknown[] = [];
   let porActa: unknown[] = [];
   let porDiag: unknown[] = [];
-  if (actaIds.length) {
-    let qPorActa = supabase
+
+  if (vids.length) {
+    let qPorVeh = supabase
       .from('cotizaciones')
       .select(COTIZACION_LIST_SELECT)
-      .in('acta_id', actaIds);
-    if (statusCotizacion) qPorActa = qPorActa.eq('status', statusCotizacion);
-    const { data, error: e2 } = await qPorActa;
-    if (e2) throw e2;
-    porActa = data || [];
+      .in('vehiculo_id', vids);
+    if (statusCotizacion) qPorVeh = qPorVeh.eq('status', statusCotizacion);
+    const { data: pv, error: e1 } = await qPorVeh;
+    if (e1) throw e1;
+    porVehiculo = pv || [];
 
-    const { data: diagnosticos, error: errD } = await supabase
-      .from('diagnosticos')
+    const { data: actas, error: errA } = await supabase
+      .from('actas')
       .select('id')
-      .in('acta_id', actaIds);
-    if (errD) throw errD;
-    const diagIds = ((diagnosticos || []) as { id: string }[]).map((d) => d.id);
-    if (diagIds.length) {
-      let qPorDiag = supabase
+      .in('vehiculo_id', vids);
+    if (errA) throw errA;
+    const actaIds = ((actas || []) as { id: string }[]).map((a) => a.id);
+
+    if (actaIds.length) {
+      let qPorActa = supabase
         .from('cotizaciones')
         .select(COTIZACION_LIST_SELECT)
-        .in('diagnostico_id', diagIds);
-      if (statusCotizacion) qPorDiag = qPorDiag.eq('status', statusCotizacion);
-      const { data: d3, error: e3 } = await qPorDiag;
-      if (e3) throw e3;
-      porDiag = d3 || [];
+        .in('acta_id', actaIds);
+      if (statusCotizacion) qPorActa = qPorActa.eq('status', statusCotizacion);
+      const { data, error: e2 } = await qPorActa;
+      if (e2) throw e2;
+      porActa = data || [];
+
+      const { data: diagnosticos, error: errD } = await supabase
+        .from('diagnosticos')
+        .select('id')
+        .in('acta_id', actaIds);
+      if (errD) throw errD;
+      const diagIds = ((diagnosticos || []) as { id: string }[]).map((d) => d.id);
+      if (diagIds.length) {
+        let qPorDiag = supabase
+          .from('cotizaciones')
+          .select(COTIZACION_LIST_SELECT)
+          .in('diagnostico_id', diagIds);
+        if (statusCotizacion) qPorDiag = qPorDiag.eq('status', statusCotizacion);
+        const { data: d3, error: e3 } = await qPorDiag;
+        if (e3) throw e3;
+        porDiag = d3 || [];
+      }
     }
   }
 
   const byId = new Map<string, Record<string, unknown>>();
-  for (const row of [...(porVehiculo || []), ...porActa, ...porDiag]) {
+  for (const row of [...porVehiculo, ...porActa, ...porDiag, ...(porManual || [])]) {
     const rec = row as { id: string };
     if (rec?.id && !byId.has(rec.id)) byId.set(rec.id, row as Record<string, unknown>);
   }

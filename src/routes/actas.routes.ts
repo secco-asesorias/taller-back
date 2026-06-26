@@ -79,4 +79,21 @@ router.post('/:id/iniciar-ot', requireRole('admin'), async (req: AuthRequest, re
   } catch (e) { next(e); }
 });
 
+/** Presupuesto vinculado al acta hoy (acta_id → diagnóstico → patente) */
+router.get('/:id/cotizacion', async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    res.json(await otSvc.cotizacionActualDeActa(p(req).id));
+  } catch (e) { next(e); }
+});
+
+/** Reasigna un presupuesto al acta y sincroniza la OT y la lista de compra */
+router.post('/:id/reasignar-cotizacion', requireRole('admin'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const cotizacionId = String((req.body || {}).cotizacion_id || '');
+    if (!cotizacionId) return res.status(400).json({ error: 'cotizacion_id es requerido' });
+    const forzar = Boolean((req.body || {}).forzar);
+    res.json(await otSvc.reasignarCotizacionAActa(p(req).id, cotizacionId, { forzar }));
+  } catch (e) { next(e); }
+});
+
 export default router;

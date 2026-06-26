@@ -237,6 +237,94 @@ export async function crearOTDesdeActa(actaId: string) {
   return ot;
 }
 
+/**
+ * Devuelve el presupuesto asociado a un acta hoy (acta_id → diagnóstico → patente).
+ * Usado para mostrar en el detalle del acta qué cotización está vinculada.
+ */
+export async function cotizacionActualDeActa(actaId: string) {
+  const { data: acta, error } = await supabase
+    .from('actas')
+    .select('id, vehiculos:vehiculo_id(*)')
+    .eq('id', actaId)
+    .single();
+  if (error) throw error;
+  const { cot, origen } = await buscarCotizacionParaActa(actaId, acta as Record<string, unknown>);
+  return { cotizacion: cot, origen };
+}
+
+/**
+ * Reasigna un presupuesto a un acta y sincroniza la OT y la lista de compra al instante.
+ *  - Vincula la nueva cotización (acta_id) y desvincula las que apuntaban antes a esa acta.
+ *  - Si no hay OT: solo vincula (estado 'sin_ot'); se aplicará al iniciar la OT.
+ *  - Si la OT está vacía o `forzar=true`: repuebla repuestos/instrucciones y crea la lista de compra.
+ *  - Si la OT ya tiene repuestos y no se fuerza: no la toca (estado 'requiere_confirmacion').
+ */
+export async function reasignarCotizacionAActa(
+  actaId: string,
+  cotizacionId: string,
+  { forzar = false }: { forzar?: boolean } = {},
+) {
+  const cot = await cargarCotizacionCompleta(cotizacionId) as Record<string, unknown>;
+  const now = new Date().toISOString();
+
+  // Dejar un único vínculo: desvincular las cotizaciones previas de este acta y vincular la nueva.
+  await supabase.from('cotizaciones').update({ acta_id: null, updated_at: now }).eq('acta_id', actaId).neq('id', cotizacionId);
+  await supabase.from('cotizaciones').update({ acta_id: actaId, updated_at: now }).eq('id', cotizacionId);
+
+  // Buscar la OT del acta (la más antigua, igual criterio que crearOTDesdeActa).
+  const { data: ots } = await supabase
+    .from('ordenes_trabajo')
+    .select('id, numero_ot, status, repuestos')
+    .eq('acta_id', actaId)
+    .order('created_at', { ascending: true });
+  const ot = ((ots || []) as Record<string, unknown>[])[0] || null;
+
+  if (!ot) {
+    return { cotizacion: cot, ot: { estado: 'sin_ot' as const }, compra_creada: false };
+  }
+
+  const vacia = ot.status === 'generada' && repuestosVacios(ot.repuestos);
+  if (!vacia && !forzar) {
+    return {
+      cotizacion: cot,
+      ot: { estado: 'requiere_confirmacion' as const, id: ot.id, numero_ot: ot.numero_ot },
+      compra_creada: false,
+    };
+  }
+
+  // Poblar la OT con los repuestos/instrucciones del nuevo presupuesto.
+  const { repuestos, instrucciones } = estructurarOTDesdeItems((cot.items as OTItem[]) ?? []);
+  const { data: histRow } = await supabase
+    .from('ordenes_trabajo').select('historial').eq('id', ot.id as string).single();
+  const historial = ((histRow as { historial?: unknown[] } | null)?.historial) || [];
+
+  const { error: errUpd } = await supabase
+    .from('ordenes_trabajo')
+    .update({
+      cotizacion_id: cot.id,
+      repuestos,
+      instrucciones,
+      items:      cot.items ?? [],
+      updated_at: now,
+      historial: [...historial, {
+        ts:     now,
+        accion: 'Repuestos cargados desde presupuesto (reasignado)',
+        nota:   `COT-${cot.numero_cotizacion}`,
+      }],
+    })
+    .eq('id', ot.id as string);
+  if (errUpd) throw errUpd;
+
+  // Subida automática de repuestos: lista de compra idempotente.
+  await crearCompraDesdeCotizacion(cot, ot.id as string);
+
+  return {
+    cotizacion: cot,
+    ot: { estado: forzar && !vacia ? 'forzada' as const : 'actualizada' as const, id: ot.id, numero_ot: ot.numero_ot },
+    compra_creada: true,
+  };
+}
+
 export async function aprobarCotizacionYCrearOT(cotizacionId: string) {
   const cot = await cargarCotizacionCompleta(cotizacionId) as Record<string, unknown>;
   const estructuraOT = estructurarOTDesdeItems((cot.items || []) as OTItem[]);

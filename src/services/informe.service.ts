@@ -79,26 +79,36 @@ export async function crearOInformeDesdeOT(otId: string) {
   if (actual) return actual;
 
   const ot = await cargarOTCompleta(otId);
+  const datos = prefillDesdeOT(ot);
+  const rawPatente = String((datos as any).patente ?? '').toUpperCase().replace(/[\s-]/g, '');
+  const slug = rawPatente ? `informe_${rawPatente}` : randomUUID();
 
-  const { data, error } = await supabase
-    .from('informes')
-    .insert({
-      ot_id: otId,
-      vehiculo_id: (ot as any).vehiculo_id ?? null,
-      cliente_id: (ot as any).cliente_id ?? null,
-      share_token: randomUUID(),
-      status: 'borrador',
-      datos: prefillDesdeOT(ot),
-    })
-    .select()
-    .single();
+  const insertar = (token: string) =>
+    supabase
+      .from('informes')
+      .insert({
+        ot_id: otId,
+        vehiculo_id: (ot as any).vehiculo_id ?? null,
+        cliente_id: (ot as any).cliente_id ?? null,
+        share_token: token,
+        status: 'borrador',
+        datos,
+      })
+      .select()
+      .single();
 
-  // Si dos requests crean el informe a la vez (ej. StrictMode dispara el efecto 2 veces),
-  // el segundo choca con el unique(ot_id): devolvemos el que ya quedó creado.
-  if (error) {
-    if (error.code === '23505') return obtenerInformePorOT(otId);
-    throw error;
+  const { data, error } = await insertar(slug);
+
+  if (error?.code === '23505') {
+    // Puede ser conflicto de ot_id (race condition) o de share_token (misma patente en otra OT).
+    const existente = await obtenerInformePorOT(otId);
+    if (existente) return existente;
+    // Conflicto de token: reintentar con sufijo único.
+    const { data: d2, error: e2 } = await insertar(`${slug}_${randomUUID().slice(0, 8)}`);
+    if (e2) throw e2;
+    return d2;
   }
+  if (error) throw error;
   return data;
 }
 

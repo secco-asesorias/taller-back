@@ -18,6 +18,7 @@ import usuariosRoutes from './routes/usuarios.routes';
 import tecnicosRoutes from './routes/tecnicos.routes';
 import horariosRoutes from './routes/horarios.routes';
 import reservasRoutes from './routes/reservas.routes';
+import dashboardRoutes from './routes/dashboard.routes';
 
 const app = express();
 
@@ -54,6 +55,7 @@ app.use('/api/usuarios', usuariosRoutes);
 app.use('/api/tecnicos', tecnicosRoutes);
 app.use('/api/horarios', horariosRoutes);
 app.use('/api/reservas', reservasRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 app.use(errorHandler);
 
